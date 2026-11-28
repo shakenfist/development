@@ -4,10 +4,12 @@
 # there -- or, if the file already has a `repo: local` entry, add the
 # hook below to that entry's `hooks:` list instead.
 #
-# A pre-commit hook and no workflow of its own: every repository in the
-# fleet already runs `pre-commit run --all-files` in CI, so this one
-# hook gates merges as well as commits, and the check takes well under
-# a second, so it does not earn a lane.
+# A pre-commit hook, and it takes well under a second. By itself it
+# gates only commits made with hooks installed. It gates merges only
+# where the repository's CI runs `pre-commit run --all-files`; where CI
+# runs each hook as a job of its own, add ci-job.yaml from this
+# template's directory as well, or a branch pushed with `--no-verify`
+# is never measured.
   - repo: local
     hooks:
       - id: source-size-ratchet

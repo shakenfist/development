@@ -38,6 +38,7 @@ not splitting at all.
 |------|-------------|-------------|
 | `source-size-ratchet.py` | `tools/source-size-ratchet.py` | The check; stdlib Python 3, copied verbatim |
 | `pre-commit-hook.yaml` | merged into `.pre-commit-config.yaml` | A `repo: local` hook stanza, `pass_filenames: false` |
+| `ci-job.yaml` | pasted into a workflow's `jobs:` map | Optional: a fork-guarded CI job, for repositories whose CI runs hooks individually |
 | -- | `tools/source-size-baseline` | Written by the adopting repository on adoption: one `<lines> <path>` per oversize file, sorted by path |
 | -- | `tools/source-size-exclude` | Optional, written by the adopting repository: generated or vendored trees, one glob per line, each with a `#` comment saying why |
 | `README.md` | -- | This file |
@@ -87,35 +88,35 @@ whole, so the baseline is exactly the list of files that owe one.
    has a `repo: local` entry, add the hook to that entry's `hooks:`
    instead. The comments in the stanza say why each setting is what
    it is. Then check how the adopting repository's CI runs its
-   hooks, and add a job where it runs them individually: the hook
-   alone gates only commits by people who have hooks installed, not
-   merges, and not a branch pushed with `--no-verify`. ryll is the
-   worked example. It runs `skillsaw` through pre-commit and gives
-   every other hook a CI job of its own, deliberately, so a failure
-   is reported under one name and holds one runner; its
-   `.github/workflows/ci.yml` job `source-size-ratchet` mirrors that
-   repository's bidi scan. Three things about it are not obvious. It
-   runs `python3 -I tools/source-size-ratchet.py` on a plain
-   `actions/checkout`. It is fork-guarded, because it runs a script
-   from the checkout, which a fork can edit. And it deliberately
-   does not restrict itself to changed paths, for the same reason
-   the hook stanza is `always_run`: a source file anywhere, the
-   baseline or the exclude file can change the verdict, and the job
-   takes seconds. A consistency audit that reads
+   hooks. Where it runs `pre-commit run --all-files`, the hook gates
+   merges and nothing more is needed. Where it runs hooks
+   individually, the hook alone gates only commits by people who
+   have hooks installed, not merges, and not a branch pushed with
+   `--no-verify`: paste `ci-job.yaml` into the workflow's `jobs:`
+   map, edit its `runs-on`, and re-pin its `actions/checkout` to
+   whatever the repository pins. ryll is the worked example: it
+   runs `skillsaw` through pre-commit and gives every other hook a
+   CI job of its own, deliberately, so a failure is reported under
+   one name and holds one runner, and the snippet is modelled on
+   its `source-size-ratchet` job. A consistency audit that reads
    `.pre-commit-config.yaml` sees the hook and not the job, so a
-   missing job is not something an audit will catch for you. One
-   consequence of the fork guard is worth deciding rather than
-   inheriting: ryll's enqueue and automated-reviewer gates count a
-   skipped job as success, so on a fork pull request the job does
-   not run and nothing reports a ratchet verdict, while the pull
-   request can still enqueue. That is the right trade for a job
-   that executes a script the fork controls: this fleet's CI runs
-   on self-hosted runners, so running a fork's version of the
-   script is arbitrary code execution on our own infrastructure.
-   Dropping the guard to regain coverage is therefore not one of
-   the options. An adopter who wants fork branches measured runs
-   the ratchet from a trusted workflow against a pinned copy of
-   the script instead.
+   missing job is not something that file alone will tell you.
+
+   The snippet is fork-guarded, because it runs a script from the
+   checkout, which a fork can edit, and it deliberately does not
+   restrict itself to changed paths, for the same reason the hook
+   stanza is `always_run`. The guard has a consequence worth
+   deciding rather than inheriting: ryll's enqueue and
+   automated-reviewer gates count a skipped job as success, so on
+   a fork pull request the job does not run and nothing reports a
+   ratchet verdict, while the pull request can still enqueue. That
+   is the right trade for a job that executes a script the fork
+   controls: this fleet's CI runs on self-hosted runners, so
+   running a fork's version of the script is arbitrary code
+   execution on our own infrastructure. Dropping the guard to
+   regain coverage is therefore not one of the options. An adopter
+   who wants fork branches measured runs the ratchet from a
+   trusted workflow against a pinned copy of the script instead.
 3. If the repository tracks generated or vendored source, write
    `tools/source-size-exclude` first (see below), so those files never
    enter the baseline.

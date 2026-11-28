@@ -301,8 +301,8 @@ plan, the close-out of phases 1 and 2, and the pilot's report.
 |-------|--------|--------|
 | 1. The ratchet template | Complete | dbcf540 (#405) |
 | 2. `source-file-size` v2 | Complete | dbcf540 (#405) |
-| 3. ryll pilot | In progress | |
-| 4. Criteria and enforcement | Not started | |
+| 3. ryll pilot | Complete | ryll debf8b1 (#746), 252dd43 (#458) |
+| 4. Criteria and enforcement | In progress | |
 | 5. Push audit | Not started | |
 
 Phases 1 and 2 ship as one pull request here, and phase 4 as a
@@ -766,13 +766,14 @@ shifts are recorded here.
    5 is unplanned. Deferring to it would block this plan's phase 4
    on another repository's unplanned refactor and would land
    `rust-function-length-lint` with no compliant adopter at all --
-   the phase 4 section predicts 3 of 4 Rust repositories failing,
-   which is only true if ryll passes. Against that, the ordering
-   phase 6 wanted is not load-bearing: `#[expect]` is precisely
-   the mechanism that makes a stale exemption a build failure, so
-   if phase 5 later shortens `app/mod.rs::new` or
-   `app/connection.rs::reconnect`, the annotation fails and is
-   removed rather than quietly surviving. Taking the phase is
+   the phase 4 section then predicted 3 of 4 Rust repositories
+   failing, which is only true if ryll passes. Phase 4's own survey
+   has since corrected those figures to 6 and 5. Against that, the
+   ordering phase 6 wanted is not load-bearing: `#[expect]` is
+   precisely the mechanism that makes a stale exemption a build
+   failure, so if phase 5 later shortens `app/mod.rs::new` or
+   `app/connection.rs::reconnect`, the annotation fails and is removed
+   rather than quietly surviving. Taking the phase is
    therefore cheaper than waiting for it, and the two functions
    phase 5 would touch are the two the mechanism protects. At the
    threshold step 3b settled on, 200, that last clause is only
@@ -1237,63 +1238,510 @@ Phase 4 reads this subsection. Each statement is checkable.
 ### 4. Criteria and enforcement
 
 Two new criteria, each with all five of its files in step (see
-Success criteria):
+Success criteria), both in one new family module,
+`scripts/audit/checks/source_size.py`, for the reason decision 1
+below gives.
 
 * **`source-size-ratchet`** (`docs/audits/source-size-ratchet.md`):
   applicable to every in-scope repository with tracked source.
-  Requires `tools/source-size-ratchet.py` to match the template,
-  `tools/source-size-baseline` to exist, and
-  `.pre-commit-config.yaml` to invoke the script. Does **not**
-  re-run the ratchet: whether the baseline is honoured is the
-  hook's job on every pull request, and an audit that re-judged it
-  would only disagree with CI.
+  Requires `tools/source-size-ratchet.py` to be byte-identical to
+  the template, the hook to be invoked from
+  `.pre-commit-config.yaml`, and CI to reach that hook. Does
+  **not** re-run the ratchet: whether the baseline is honoured is
+  the hook's job on every pull request, and an audit that
+  re-judged it would only disagree with CI. It does not require
+  `tools/source-size-baseline` or `tools/source-size-exclude` to
+  exist, for the reason the survey gives.
 
-  The pilot found the hole in that sketch, and phase 4 has to
-  settle it: the hook being in `.pre-commit-config.yaml` does not
-  mean it gates anything. ryll runs each hook as its own CI job
-  rather than `pre-commit run --all-files`, so until phase 3's
-  pilot added a `source-size-ratchet` job the hook gated only
-  commits by people with hooks installed -- not merges, and not a
-  branch pushed with `--no-verify`. A criterion that reads only
-  the pre-commit config passes such a repository. Phase 4 decides
-  whether it must also require a CI invocation, or state why
-  hook-presence is enough; the second is defensible only if
-  something else establishes that hooks run in CI.
+  The pilot found the hole in that sketch, and this phase settles
+  it: the hook being in `.pre-commit-config.yaml` does not mean it
+  gates anything. ryll runs each hook as its own CI job rather
+  than `pre-commit run --all-files`, so until phase 3's pilot
+  added a `source-size-ratchet` job the hook gated only commits by
+  people with hooks installed -- not merges, and not a branch
+  pushed with `--no-verify`. A criterion that reads only the
+  pre-commit config passes such a repository. Decision 2 requires
+  a CI invocation, and the survey found the precedent for reading
+  one.
 * **`rust-function-length-lint`**
   (`docs/audits/rust-function-length-lint.md`): modelled on
-  `rust-unwrap-lint` and living beside it in
-  `scripts/audit/checks/packaging.py`. Requires `too_many_lines`
-  at `warn` or `deny` in the root `Cargo.toml`, inherited by every
-  first-party crate except those that cannot: the pilot found two
-  non-inheriting crates in ryll, `shakenfist-spice-protocol/fuzz`
-  and `tools/gen-swatches-jpeg`, neither of which has `[lints]
-  workspace = true`, so the criterion must allow for more than one
-  exemption or it fails ryll, the one repository the pilot made
-  compliant. It also requires a `too-many-lines-threshold` in
-  `clippy.toml`. It does not judge the number (open question 4).
-  Per decision 4 it accepts an `#[allow(clippy::too_many_lines)]`
-  that carries a stated reason and flags only a bare one: ryll needs
-  no `#[allow]` and the hazard has no instance in a tree clippy
-  measures this way, but a macro- or build-script-generated body
-  elsewhere may need the escape, and a criterion that refuses one
-  outright turns that into an argument about the criterion.
+  `rust-unwrap-lint`, which lives in
+  `scripts/audit/checks/packaging.py`, but not beside it, for the
+  reason decision 1 below gives. Requires `too_many_lines` at `warn`
+  or `deny` in the root `Cargo.toml`, inherited by every first-party
+  crate that the root workspace covers, and a
+  `too-many-lines-threshold` in `clippy.toml`. It does not judge the
+  number (open question 4). Per phase 3's decision 4 it accepts an
+  `#[allow(clippy::too_many_lines)]` that carries a stated reason and
+  flags only a bare one: ryll needs no `#[allow]` and the hazard has
+  no instance in a tree clippy measures this way, but a macro- or
+  build-script-generated body elsewhere may need the escape, and a
+  criterion that refuses one outright turns that into an argument
+  about the criterion.
 
-**What switching them on does**, to be re-derived from the dry run
-before merging: `rust-function-length-lint` applies to 4
-repositories and, after the pilot, fails 3 (`instar`,
-`uncalibrated-sextant`, `visual-digest-rust`).
-`source-size-ratchet` fails every one of the 22 in-scope
-repositories that has tracked source, except `development` and
-`ryll`; the dry run gives the exact number. As in `PLAN-review-unit-size.md` D2, the
-daily audit drives the fixes; this plan opens no pull requests in
-those repositories, and `docs/audits/compliance.md` showing both
-criteria mostly red for a while is the intended state of a newly
-enforced rule.
+**What switching them on does**, measured by step 4d rather than
+predicted: `rust-function-length-lint` applies to 6 repositories
+and fails 5 (`andris`, `instar`, `teneral`,
+`uncalibrated-sextant`, `visual-digest-rust`), with ryll passing.
+`source-size-ratchet` applies to all 23 in-scope repositories --
+every one has tracked source -- and fails 20, because three pass:
+`development`, `ryll` and `instar`. As in
+`PLAN-review-unit-size.md` D2, the daily audit drives the fixes;
+this plan opens no pull requests in those repositories, and
+`docs/audits/compliance.md` showing both criteria mostly red for a
+while is the intended state of a newly enforced rule.
 
 Verify with `audit-check.py` against local clones of ryll, instar
 and kerbside and `audit-manage-issues.py --dry-run`, per the
 procedure in `PLAN-review-unit-size.md` phase 2. Never regenerate
 `docs/audits/compliance.md` in place.
+
+#### What the survey found
+
+Surveyed on 2026-11-28, against `main` at `c605ae1` and ryll at
+`origin/develop`. Seven of this section's factual claims were
+checked and five had gone stale; the two that held are named at
+the end, because a survey that reports only what it broke reads as
+if nothing was verified.
+
+1. **`packaging.py` cannot take the criterion, and its tests
+   cannot take the tests.** Every entry in
+   `tools/source-size-baseline` is currently equal to its file's
+   length -- that is what `--update` leaves behind -- so
+   `scripts/audit/checks/packaging.py` (2,391) and
+   `scripts/tests/test_packaging.py` (2,922) are both at their
+   baselines, as are `ci_workflows.py` (2,605) and its suite
+   (3,793). Adding a criterion to either family means raising an
+   entry by hand, which is exactly the question this plan built
+   the ratchet to ask. `PLAN-workflow-ref-trust.md` phase 4 hit
+   the same wall on 2026-11-22 and answered it with a new
+   `action_pinning` family module; decision 1 follows it.
+2. **"Applies to 4 repositories" is now 6.** `andris` joined the
+   audit matrix on 2026-10-08 (`066d639`) and `teneral` on
+   2026-11-28 (`60db82b`), and both are Rust. None of the five
+   non-ryll Rust repositories sets `too_many_lines` anywhere in
+   its root manifest, so the criterion fails all five on the day
+   it lands, not three.
+3. **"22 in-scope repositories" is now 23.** The in-scope list in
+   `docs/audits/README.md` holds 23 names; `client-python-ova`
+   (2026-10-15) and `teneral` joined after this section was
+   written. How many of the 23 have tracked source is still the
+   dry run's to report.
+4. **The two non-inheriting crates are not two exemptions.** This
+   section said the criterion "must allow for more than one
+   exemption or it fails ryll". Measured against
+   `rust-unwrap-lint`'s own rules, neither crate needs a new
+   exemption mechanism. `shakenfist-spice-protocol/fuzz` is
+   already skipped, by the `'fuzz' in manifest.split('/')` test at
+   `scripts/audit/checks/packaging.py:2323`. And
+   `tools/gen-swatches-jpeg/Cargo.toml` is not a workspace member
+   that fails to inherit: it declares its own `[workspace]`, so
+   cargo excludes it from the root workspace entirely, and it
+   defines `[lints.clippy] unwrap_used = "warn"` for itself. It
+   passes `rust-unwrap-lint` today through the "defines it itself"
+   branch, not through an exemption. Decision 5 settles what the
+   new criterion does with it.
+5. **The baseline file is not evidence of adoption.** This section
+   said the criterion requires `tools/source-size-baseline` to
+   exist. The tool's own docstring says "a missing baseline is an
+   empty one", so a repository with nothing over 1,500 lines is
+   compliant without the file, and this repository carries no
+   `tools/source-size-exclude` at all. Requiring either would fail
+   a correctly adopted repository for the absence of a file it
+   does not need. Decision 3.
+6. **The claim phase 3 retired from the README survives in the
+   stanza adopters paste.** Step 3e replaced the README's
+   assertion that "the fleet's CI already runs `pre-commit run
+   --all-files`, so the hook gates merges too". The same claim is
+   still in `templates/source-size-ratchet/pre-commit-hook.yaml`,
+   in the comment above `- repo: local`: "every repository in the
+   fleet already runs `pre-commit run --all-files` in CI, so this
+   one hook gates merges as well as commits". That is the text an
+   adopter copies into its own `.pre-commit-config.yaml`, so the
+   false claim propagates into each adopter's tree rather than
+   staying in a README nobody re-reads. Step 4a fixes it.
+7. **The CI-reach question already has a worked answer in the
+   tree.** `llm-context-lint-ci`
+   (`scripts/audit/checks/llm_docs.py:496`) requires skillsaw in
+   `.pre-commit-config.yaml` *and* in CI, and accepts three
+   routes: a workflow that names the tool, a workflow that runs
+   `pre-commit` (`PRE_COMMIT_RUN_RE`, line 151), or a workflow
+   that invokes the command directly. The regex is
+   `pre[-_]commit['"]?\s+run\b`, whose optional closing quote is
+   what makes it match this repository's own invocation,
+   `"${RUNNER_TEMP}/venv-lint/bin/pre-commit" run --all-files` at
+   `.github/workflows/ci.yml:151`. Decision 2 reuses that shape
+   rather than inventing one.
+
+What held: the `rust-unwrap-lint` model is the right one, and its
+manifest-walking code is reusable as written; the
+`ReviewTrackingTemplates` byte-comparison
+(`scripts/audit/checks/review.py:360`) is the right mechanism for
+the template-identity half, including its `read_within` of this
+repository's own checkout and its `repo.read_blob` of the
+adopter's; the reasoning for not re-running the ratchet stands;
+and both repositories this phase must not break do pass today --
+this repository's `tools/source-size-ratchet.py` is byte-identical
+to the template it ships, and ryll's is too.
+
+The false claims in this section's own text, and the figures in
+the `docs/plans/index.md` row, were corrected in the commit that
+registered this phase, so a later step does not need to redo them.
+
+#### Decisions
+
+1. **Both criteria go in one new family module,
+   `scripts/audit/checks/source_size.py`, with their tests in
+   `scripts/tests/test_source_size_checks.py`.** Finding 1: the
+   homes this section named -- `packaging.py` for the Rust lint,
+   and `ci_workflows.py` where the pre-commit criteria live -- are
+   both exactly at their `tools/source-size-baseline` entries, as
+   are both suites. Landing a criterion there means raising an
+   entry by hand, and a plan whose whole subject is that raising
+   an entry should be a question asked in review cannot answer it
+   with "to land the criterion". The new suite is named
+   `test_source_size_checks.py` rather than mirroring the module
+   as `test_source_size.py`, because
+   `scripts/tests/test_source_size_ratchet.py` already exists and
+   tests the shipped tool; two suites a letter apart, one testing
+   the tool and one the criteria, is a trap for the next reader.
+   `unittest discover` picks the new file up with no hook change
+   (`.pre-commit-config.yaml`, `audit-package-tests`).
+
+   The counter-argument is real: `rust-function-length-lint` is a
+   Rust manifest criterion and belongs with `rust-unwrap-lint`, and
+   splitting them makes the home of the next Rust criterion
+   ambiguous. Against it: the family this module names is source
+   size, which both criteria measure -- one per file, one per
+   function -- and `PLAN-workflow-ref-trust.md` phase 4 made the
+   same call for the same reason five days earlier, so a reader
+   who finds one finds the pattern. The module docstring says what
+   the family covers and why it is not in `packaging.py`.
+
+2. **`source-size-ratchet` requires CI to reach the hook**, read
+   the way `llm-context-lint-ci` reads the same question (finding
+   7). The hook must be invoked from `.pre-commit-config.yaml`,
+   and at least one workflow must either run `pre-commit`
+   (`PRE_COMMIT_RUN_RE`) or invoke `tools/source-size-ratchet.py`
+   directly. That accepts both shapes in the fleet today: this
+   repository's single `pre-commit run --all-files` lane, and
+   ryll's job per hook.
+
+   The alternative this section offered -- hook presence is
+   enough, if something else establishes that hooks run in CI --
+   has nothing to rest on. The criterion that would have to
+   establish it, `pre-commit-config`, checks only that
+   `.pre-commit-config.yaml` exists.
+
+3. **Neither `tools/source-size-baseline` nor
+   `tools/source-size-exclude` is required to exist.** Finding 5.
+   A repository with nothing over 1,500 lines is compliant with no
+   baseline -- the tool reads a missing one as empty -- and this
+   repository carries no exclude file at all. The criterion
+   therefore measures adoption (the script, the hook, the CI
+   reach) and leaves the contents to the hook.
+
+4. **The fuzz crate needs no exemption, and a crate declaring its
+   own `[workspace]` is skipped.** Finding 4. The first is already
+   true of `rust-unwrap-lint`'s manifest walk, which the new
+   criterion reuses. The second is the decision: cargo excludes a
+   nested workspace root from the parent workspace, so
+   `[workspace.lints]` cannot reach it and "inherit the workspace
+   lints" is not a thing it can do. Requiring it to define the
+   lint itself would fail ryll on the day the criterion lands --
+   `tools/gen-swatches-jpeg` defines `unwrap_used` and not
+   `too_many_lines` -- and ryll is the adopter whose passing is
+   what makes the criterion credible. The honest cost is recorded
+   in the spec's residual and in Future work: a nested workspace
+   is unmeasured, and ryll has one.
+
+5. **The template gains a CI job snippet, and #460 is closed by
+   this phase.** Decision 2 makes the job the criterion's
+   requirement, so the template cannot keep asking an adopter to
+   write one from a prose description: the fork guard is the part
+   most likely to be dropped, and dropping it on this fleet's
+   self-hosted runners is arbitrary code execution on our own
+   infrastructure. #460 was declined in phase 3 as template
+   surface a pilot report should not carry, and named this phase
+   as where it belongs if the criterion required the job. It does.
+
+6. **`templates/source-size-ratchet/source-size-ratchet.py` is not
+   touched in this phase.** The criterion compares the adopter's
+   copy to the template byte for byte, so any edit to the script
+   makes every adopter non-compliant until it re-copies. #436 (a
+   file vanishing between `lstat` and `open` exits 2) is a real
+   one-line fix and is deliberately left for a change that also
+   re-syncs ryll, through the `template-resync` skill, rather than
+   landing here and failing the criterion's own pilot repository.
+   The comment fix in step 4a is not a counter-example: it is in
+   `pre-commit-hook.yaml`, which nothing compares byte for byte.
+
+7. **`audit-manage-issues.py` runs `--dry-run` only.** Turning two
+   criteria on fails most of the fleet at once, and the daily audit
+   is what files the issues, on its own schedule, the morning
+   after this merges. `PLAN-review-unit-size.md` D2 is the
+   precedent.
+
+#### Step plan
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 4a | medium | sonnet | worktree | Ship the CI job snippet the criterion will require, and retire the last copy of the claim phase 3 corrected. Add `templates/source-size-ratchet/ci-job.yaml`: a single job stanza indented to paste into an adopter's `jobs:` map, shaped like the sibling `pre-commit-hook.yaml` (a comment per setting, no `{{PLACEHOLDER}}`), modelled on the job phase 3 added to ryll, which is `source-size-ratchet:` in ryll's `.github/workflows/ci.yml` at `origin/develop` lines 521-542: `name`, a `runs-on` the adopter edits, `timeout-minutes: 15`, the fork guard (`github.event_name != 'merge_group' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)`) with the comment saying what it is for, a `concurrency` group, `actions/checkout`, and `python3 -I tools/source-size-ratchet.py` with the comment on `-I` that the hook stanza already carries. Pin `actions/checkout` to the sha this repository's own `.github/workflows/ci.yml` uses, with the `# v7` comment, and say in a comment that this file is not a workflow so neither Renovate's workflow manager nor `third-party-action-pinning` reaches it, and the adopter should re-pin to whatever its repository pins. State in a comment that the guard means a fork pull request reports no verdict, and that this is deliberate. Add it to the README's Files table marked optional, for repositories whose CI runs hooks individually, and rewrite step 2 of "Adopting it" to point at the snippet instead of describing ryll's job in prose, keeping the fork-guard consequence and the self-hosted-runner reason that step 3e wrote. Then fix the comment above `- repo: local` in `pre-commit-hook.yaml`, which still says every repository in the fleet runs `pre-commit run --all-files` in CI so the hook gates merges: that is the claim step 3e retired from the README, and this is the copy an adopter pastes into its own config. Finally extend the `files:` negative lookahead on the `actionlint-templates` hook in `.pre-commit-config.yaml` to exclude `ci-job.yaml` as well, since actionlint can only reject a bare job stanza, and keep the explanatory comment above it accurate for two files. Do **not** add it to that hook's `exclude:` list: `ConvergedTemplatesTest.test_only_excluded_templates_carry_placeholders` in `scripts/tests/test_registry.py` holds that list to exactly the templates carrying placeholders, and this file carries none -- #460 predicted an exclude-list change, and it is the lookahead that needs one. No test pins the lookahead's text (`scripts/tests/test_hooks.py` builds its own config), so the only check is that `pre-commit run --all-files` still passes. Commit subject: `Ship the ratchet's CI job as a snippet.` |
+| 4b | high | opus | worktree | Add the `source-size-ratchet` criterion in a new family module, `scripts/audit/checks/source_size.py`, whose docstring says the family is source size -- a file-level ratchet and a function-level lint -- and why it is not in `packaging.py` or `ci_workflows.py` (decision 1: both are at their `tools/source-size-baseline` entries). Class `SourceSizeRatchet`, `id = 'source-size-ratchet'`, `spec = 'docs/audits/source-size-ratchet.md'`, `template = 'templates/source-size-ratchet/'`, `issue_title = 'Source size ratchet'`. `applies()` returns a reason unless the repository has tracked source the tool would measure: read `SOURCE_EXTENSIONS` from the template rather than restating the list, or state in a comment why a copy was unavoidable. `run()` checks three things. One, `tools/source-size-ratchet.py` is byte-identical to `templates/source-size-ratchet/source-size-ratchet.py`, using the mechanism `ReviewTrackingTemplates` uses (`scripts/audit/checks/review.py:360`): `read_within(DEVELOPMENT_ROOT, ..., binary=True)` for this repository's template, raising `ToolFailure` if the audit cannot read its own checkout, and `repo.read_blob()` for the adopter's copy, with the same distinction between missing and "not a regular file the audit will read" that check draws, and the same `os.path.lexists` test behind it. Two, `.pre-commit-config.yaml` invokes the hook -- match the entry (`tools/source-size-ratchet.py`) rather than the hook id, so a renamed id still counts and a comment mentioning the tool does not; `file_mentions` is in `scripts/audit/files.py` and `file_matches` and `PRE_COMMIT_RUN_RE` are in `scripts/audit/checks/llm_docs.py`; move the latter two into `audit.files` beside the former and have `llm_docs.py` import them from there, rather than importing across two criteria's modules. Nothing else in `scripts/` references either name and `files.py` is not baselined, so the move costs one file and no test changes. Three, CI reaches it (decision 2): at least one workflow matches `PRE_COMMIT_RUN_RE` (`llm_docs.py:151`) or invokes the script directly; import both rather than re-spelling them. Report each failure separately, in the terms the compliance page needs, and name the fix. Do **not** run the ratchet, and do **not** require `tools/source-size-baseline` or `tools/source-size-exclude` (decision 3). Write `docs/audits/source-size-ratchet.md` following `docs/audits/README.md`'s shape, with a `## Projects` section linking `compliance.md#source-size-ratchet`, a Why that states the 1,500-line threshold and that the baseline is the list of files owing a stated reason, and a residual section recording that a fork-guarded job satisfies the CI-reach test while reporting no verdict on a fork pull request, which is the trade ryll's job makes deliberately. The spec cites no plan phase, step or decision number -- `plan-phase-references` greps `docs/` for `phase <n>` and skips only `plans/` -- and links this plan for the history instead. Register it: add `source_size` to the `from audit.checks import (...)` list in `scripts/audit/registry.py` and append the instance at the end of `CHECKS` (the docstring says families are appended, because the results JSON's order is part of its bytes), add the row to `docs/audits/README.md`, and add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`. It reaches no network, so `NETWORK_CHECKS` in `scripts/audit_snapshot.py` is not edited. Add `SourceSizeRatchetTest(CheckTestCase)` in a new `scripts/tests/test_source_size_checks.py` covering: no tracked source (`not_applicable`); the copy missing; the copy differing by one byte; the copy present as a dangling symlink; the hook absent from the config; the hook named only in a comment; the hook present with no workflow at all; present with a workflow running `pre-commit run --all-files` through a quoted venv path (pass, the shape this repository uses); present with a workflow invoking `python3 -I tools/source-size-ratchet.py` directly (pass, the shape ryll uses); present with a workflow that merely installs pre-commit (fail); and a fully compliant repository (pass). Commit subject: `Add the source-size-ratchet criterion.` |
+| 4c | medium | sonnet | worktree | Add the `rust-function-length-lint` criterion to the module 4b created. Class `RustFunctionLengthLint`, `id = 'rust-function-length-lint'`, `spec = 'docs/audits/rust-function-length-lint.md'`, `template = None`, `issue_title = 'Rust function length lint'`. Model it on `RustUnwrapLint` (`scripts/audit/checks/packaging.py:2255`), reusing its structure rather than paraphrasing it: skip unless `repo.props['has_cargo_toml']`; root manifest `Cargo.toml` or `src/Cargo.toml`; require `too_many_lines` at `warn` or `deny` under `[workspace.lints.clippy]` or `[lints.clippy]` with the same level-matching pattern (which exists so that `too_many_lines = "allow"  # was "deny"` is not read as enabled); require a `too-many-lines-threshold` in the `clippy.toml` beside the root manifest, without judging the number (open question 4); and walk every other tracked `*Cargo.toml` requiring it to inherit or define the lint. Keep `RustUnwrapLint`'s `'fuzz' in manifest.split('/')` skip, and add the decision 4 skip: a manifest declaring its own `[workspace]` is a nested workspace root, which cargo excludes from the parent, so the parent's `[workspace.lints]` cannot reach it. Import the shared helpers (`toml_section_has_key`, `check_file_contains`, `require_tracked_paths`) from `audit.checks.packaging` rather than copying them, and say in a comment why the class is not there. Per phase 3's decision 4, an `#[allow(clippy::too_many_lines)]` carrying a stated reason is accepted and only a bare one is flagged; scan tracked `*.rs` for `allow(clippy::too_many_lines` and require a `reason =` in the same attribute or a comment on the line above, remembering that these annotations span lines -- the pilot report records that `git grep -c 'expect(clippy::too_many_lines'` finds none for exactly this reason. Write `docs/audits/rust-function-length-lint.md` with a `## Projects` section linking `compliance.md#rust-function-length-lint`, a Why citing the measured ryll distribution (about 4,145 functions, 40 over 100 lines, 21 over 150, 13 over 200, threshold 200) as the worked example of choosing a number, the `#[expect]`-not-`#[allow]` reasoning, and a residual recording that a nested workspace is unmeasured and ryll has one. No plan phase, step or decision numbers in the spec. Register it in `registry.py`, `docs/audits/README.md`, `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES`, after the `source-size-ratchet` entry. Add `RustFunctionLengthLintTest(CheckTestCase)` to `scripts/tests/test_source_size_checks.py` covering: no `Cargo.toml` (`not_applicable`); the lint missing; `too_many_lines = "allow"` with a trailing comment naming `deny`; the table form `{ level = "warn", priority = -1 }`; a missing `clippy.toml`; a `clippy.toml` without the threshold; a member crate that neither inherits nor defines; a `fuzz` crate that does neither (pass); a nested-workspace crate that does neither (pass, decision 4); a bare `#[allow(clippy::too_many_lines)]` (fail); one with `reason = "..."` (pass); one with a comment above it (pass); and ryll's own shape (pass). Commit subject: `Add the rust-function-length-lint criterion.` |
+| 4d | medium | sonnet | none | Measure what the two criteria do to the fleet, and record it. Follow the before-and-after procedure in `docs/consistency-audits.md`: `tools/audit-snapshot.sh` before the change and `--diff` after, against fresh clones of the matrix in `.github/workflows/consistency-audit.yml`, with `audit-manage-issues.py --dry-run` only (decision 7). Report, as a table in this section's Execution notes: how many of the 23 in-scope repositories each criterion applies to, how many newly fail, and the names, including this repository, which must pass both. Check the two predictions this section makes -- 6 applicable and 5 failing for `rust-function-length-lint`, and every repository with tracked source except `development` and `ryll` failing `source-size-ratchet` -- and correct the section where the measurement disagrees rather than leaving the prediction standing. Confirm no baseline entry moved: `python3 -I tools/source-size-ratchet.py` exits 0 and `git diff --quiet tools/source-size-baseline`. Do not regenerate `docs/audits/compliance.md` in place; the daily audit owns it. Commit subject: `Record what the new criteria fail.` |
+
+#### Risks and mitigations
+
+* **The byte-identity clause turns any template edit into a fleet
+  sweep.** Decision 6 keeps the script untouched here, which
+  leaves #436 open. Mitigation: #436's fix and a `template-resync`
+  run land together, and the spec says plainly that the tool's
+  copies are compared as bytes, so the next reader does not edit
+  the template expecting the criterion to tolerate it. Checked by
+  whoever takes #436, not by this phase.
+* **A fork-guarded job satisfies the CI-reach test while
+  reporting no verdict.** This is ryll's deliberate trade, and the
+  criterion cannot see a guard without parsing conditions it has
+  no business parsing. Mitigation: recorded in the spec's residual
+  and in the template's step 2, where an adopter reads it. Not
+  mitigated in code.
+* **Two criteria turning red across 21-odd repositories at once
+  reads as a broken audit.** Mitigation: decision 7 and the D2
+  precedent -- the daily audit files the issues and
+  `docs/audits/compliance.md` is left to it -- plus step 4d
+  recording the expected count in the plan, so the morning after
+  is predicted rather than discovered.
+* **The new family module is the second this month.** A reader
+  looking for a Rust criterion will look in `packaging.py` and not
+  find this one. Mitigation: both module docstrings say where the
+  other is and why, and the registry keeps the append-only order
+  the results JSON depends on. Checked in the management review of
+  4b.
+
+#### Definition of done
+
+* `python3 scripts/audit-check.py --repo-path . --repo-name
+  development` reports `pass` for both `source-size-ratchet` and
+  `rust-function-length-lint`, and reports for every other
+  criterion what it reported before this phase.
+* `python3 -I tools/source-size-ratchet.py` exits 0 and `git diff
+  --quiet tools/source-size-baseline` -- no entry was raised to
+  make room for this phase's own code.
+* `docs/audits/source-size-ratchet.md` and
+  `docs/audits/rust-function-length-lint.md` exist, each is linked
+  from the table in `docs/audits/README.md`, each carries a
+  `## Projects` section linking its `compliance.md` anchor, and
+  `grep -niE 'phase [0-9]' docs/audits/source-size-ratchet.md
+  docs/audits/rust-function-length-lint.md` prints nothing.
+* Both ids appear in `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES`
+  in `scripts/tests/test_metadata.py`, and `python3 -m unittest
+  discover -s scripts/tests -t scripts` passes.
+* Run against a clone of ryll at `debf8b1` or later, both criteria
+  report `pass`; run against a clone of `instar`,
+  `rust-function-length-lint` reports `fail`.
+* `templates/source-size-ratchet/ci-job.yaml` exists, carries no
+  `{{PLACEHOLDER}}`, is named in the README's Files table, and
+  `pre-commit run --all-files` passes with it in the tree.
+* No copy of the claim that the fleet's CI runs `pre-commit run
+  --all-files` survives in `templates/source-size-ratchet/`:
+  `grep -rn 'pre-commit run --all-files'
+  templates/source-size-ratchet/` prints only lines that say which
+  repositories do and which do not.
+* This section's Execution notes carry step 4d's measured table,
+  and any prediction the measurement contradicted has been
+  corrected in place rather than annotated.
+* #460 is closed by the pull request that lands this phase.
+
+#### Execution notes
+
+2026-11-28 (AEDT). Both back brief gates were answered before any
+step ran, and both confirmed the plan as written: decision 2's
+CI-reach rule, and decision 4's skip for a crate declaring its own
+`[workspace]`. This session was also given permission to push the
+branch and open the pull request, which phase 3's did not have.
+
+Two departures from the step table, both found by checking the
+briefs' own premises before sending them.
+
+The 4b row said `file_matches` and `file_mentions` were both in
+`scripts/audit/checks/llm_docs.py` and importable. `file_mentions`
+is in `scripts/audit/files.py`; the other two names the row needed,
+`file_matches` and `PRE_COMMIT_RUN_RE`, are in the check module, so
+importing them would have pointed a new family module's dependency
+into another criterion's module. They were moved to `audit.files`
+instead, which is the seam that module's docstring exists to
+describe, and the row above is corrected.
+
+The 4b row also said to read `SOURCE_EXTENSIONS` from the template
+rather than restating it, which is right but not possible the
+obvious way: the template's filename is hyphenated, so it cannot be
+imported. It is read out of the file's text with `ast`, without
+executing it.
+
+Step 4a's review changed two claims the step asserted rather than
+verified. Its snippet justified a `merge_group` exclusion as
+skipping a queue run "where the pull request has already been
+checked", which is neither ryll's reason -- ryll sorts jobs into a
+pull request tier and a smaller merge tier, in its `docs/ci.md` --
+nor true in general, since a queue run exists to test the merged
+result. The exclusion was dropped, so the snippet measures the tree
+about to land. Its pinning comment also cited the
+`third-party-action-pinning` criterion, which does not exist yet.
+
+Step 4d measured what the two criteria do to the fleet, from two
+hermetic `git archive` copies of `main` and of this branch, against
+25 fresh `--filter=blob:none` clones of the audit matrix. The matrix
+holds 25 names and the in-scope list 23: `images` and `private-ci`
+are scoped to a named subset of criteria, so both new criteria are
+not applicable to them. Every one of the 23 has tracked source, so
+the ratchet applies to all of them.
+
+| Criterion | Applies | Pass | Fail |
+|-----------|---------|------|------|
+| `source-size-ratchet` | 23 | 3 | 20 |
+| `rust-function-length-lint` | 6 | 1 | 5 |
+
+Every ratchet failure reads the same way -- the script is missing
+and the hook is not in `.pre-commit-config.yaml` -- so the fix is
+adoption rather than repair. `audit-manage-issues.py --dry-run`
+would file 20 `Consistency: Source size ratchet` issues and 5
+`Consistency: Rust function length lint` issues, and the snapshot
+diff moved nothing else: all 50 differences are these two criteria
+appearing across the 25 repositories, and no network check
+differed.
+
+One prediction did not survive the measurement. The section said
+the ratchet would fail every in-scope repository except
+`development` and `ryll`, which is 21. It fails 20, because
+`instar` passes: it adopted the template on 2026-11-25 in its own
+`fba04bc`, three days before this phase and with no criterion
+asking it to, and it is wired the way ryll is -- byte-identical
+script, hook in the pre-commit config, and a CI job of its own
+whose comment records that `pre-commit run --all-files` is not how
+that repository runs hooks.
+
+That is worth more than the arithmetic. It is a repository adopting
+the template from its README alone, which is the case the template
+exists for, and a second independent confirmation that decision 2's
+lane test is drawn in the right place: `instar` also runs
+`pre-commit run skillsaw --all-files`, so the loose reading would
+have passed it on that job, and the narrow one passes it on the
+ratchet job it actually has. `instar` now passes one new criterion
+and fails the other.
+
+Review round 1 on #468: 3 fix, 1 document, 7 consider, 2 none; the
+three fixes and six of the considers taken. The fix that mattered was
+in the criterion's output rather than its logic. The lane test was
+gated on the hook being declared, so a repository with no hook was
+also told "no workflow runs every pre-commit hook", which is false
+for any repository that does run one -- `shakenfist` runs
+`pre-commit run --all-files` in two workflows and was told otherwise.
+The two halves are judged independently now, and the table above was
+written from a step report that had truncated that third clause away.
+Also taken: both halves required a mention of the script rather than
+an invocation of it, so an `on.paths` filter naming the script
+counted as CI running it; the nested-workspace skip fired on any
+`[workspace.*]` header, which made the exemption self-service; and a
+`cfg_attr` carrying both an `expect` for length and an `allow` of
+something else was flagged as a bare allow.
+
+One of them was a repeat of a known defect rather than a new one. The
+new suite's `unittest.main()` sat between its two test classes, so
+running the file directly reported 17 tests and silently skipped 31 --
+which is #413, still open against `test_ci_workflows.py`. Both files
+are fixed and a test now asserts that no suite defines a class after
+its `main` block, so the third instance fails at the hook instead of
+being found by a reviewer.
+
+Review round 2: 2 fix, 6 consider, 3 none; both fixes and four of
+the considers taken. Both fixes were about code round 1 added, which
+is the convergence signal worth watching, and both were wrong
+verdicts rather than wrong prose, so both were worth taking.
+
+Round 1's narrowing of the lane test closed a false pass and opened a
+false fail: `pre-commit run source-size-ratchet --all-files`, which is
+the natural way to run this one hook as its own job, matched neither
+accepted shape. The lane now also accepts a run of the hook by the id
+the config gives it, read from the config rather than fixed, so a
+repository that renamed the hook is measured on its own name.
+
+The `entry:` scanner round 1 hand-rolled captured the indent before
+the `- ` of a list item, so for a hook whose first key was `entry:`
+every sibling key read as a continuation of the value -- a `files:`
+pattern naming the script counted as invoking it, which is a false
+pass. The scanner is deleted rather than repaired:
+`audit/text/pre_commit.py` already parses a config into hooks and
+their keys, two other check modules use it, and the same parse is
+what supplies the hook id above.
+
+Also taken: an unterminated `#[` masked to end of file, so a later
+genuine bare allow was reported at the wrong line; and the `reason =`
+search ran over the whole attribute while round 1 had scoped the lint
+name to its own `allow(...)` group, so a reason explaining a sibling
+`expect` excused the allow -- the other half of round 1's fix.
+
+Declined: the dotted TOML spellings of the lint, because no Rust
+repository in the fleet uses them, the spec states the forms that
+count, and `rust-unwrap-lint` has the same limit, so fixing one
+criterion alone would leave the two disagreeing about what TOML
+means. Also declined: the memory cost of reading every tracked `.rs`
+into the read cache.
+
+The spec gained the twenty counted extensions as prose in this round
+and lost them again in review. The criterion reads that list out of
+the template with `ast` precisely so it cannot disagree with the
+tool, and a copy in prose is the thing that drifts: the note about
+which criteria reach the network fell two checks behind that way,
+which is why `docs/consistency-audits.md` says to read such a list at
+its source. The spec now points at the template instead.
+
+Review round 3 ended the loop: 1 fix, 1 document, 6 consider, 2
+none. The fix was prose wrap -- three lines the earlier rounds'
+mid-sentence inserts left past the column the surrounding text uses,
+in `docs/audits/rust-function-length-lint.md`. It is not a false
+verdict, which is the test the previous round set for carrying on,
+so this round took it, took the document item (the spec's summary
+table listed two of the three accepted lane shapes), and stopped.
+
+Three substantive items were filed rather than taken, each verified
+latent before deferring it. #470: `too_many_lines` is in clippy's
+`pedantic` group and a level set in source beats the one `[lints]`
+passes, so `#![allow(clippy::pedantic)]` would switch the lint off
+while every check the criterion makes still passes -- no in-scope
+Rust repository allows that group or `warnings`, checked across all
+six. #471: the lane regex rejects spellings that do run the script,
+such as a quoted path or a second interpreter flag -- both
+repositories with a direct lane use the template's own spelling.
+#472: an unreadable `Cargo.toml` is reported as "not a Rust
+project", which states the opposite of what is true and closes any
+open issue, where the policy for a tool that did not answer is
+`error`; the wording is inherited from `rust-unwrap-lint`, so a fix
+covers both and must contend with `packaging.py` being at its
+baseline.
+
+Trajectory across the three rounds: 3 fix, then 2, then 1, with the
+considers 7, 6, 6. The two middle fixes were about code round 1
+added, which was the signal to watch, and both were wrong verdicts;
+by round 3 nothing left was, so the exit rule was met rather than
+the reviewer running out of things to say.
+
+#### Back brief
+
+Two gates, both because the work after them is cheap to propose
+and expensive to redo:
+
+* **Before 4b writes the criterion.** Confirm the CI-reach rule of
+  decision 2 -- hook in the config, plus `pre-commit run` or a
+  direct invocation in a workflow -- and that it passes this
+  repository through `PRE_COMMIT_RUN_RE`'s optional closing quote
+  rather than by accident. A criterion that fails the repository
+  that owns the audit is the expensive mistake available here.
+* **Before 4c decides what to do with a nested workspace.**
+  Confirm decision 4's skip rather than requiring
+  `tools/gen-swatches-jpeg` to define the lint itself. The
+  alternative needs a pull request in ryll, which this phase does
+  not open.
 
 ### 5. Push audit
 

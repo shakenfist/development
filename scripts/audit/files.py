@@ -5,6 +5,15 @@ a `Repo` and read through `Repo.read`, which is the one guarded open of
 an audited repository's files: nothing outside the clone, nothing that
 is not a regular file, nothing over the size cap. tracked_paths() asks
 git rather than the filesystem, so it takes the path.
+
+The patterns a criterion matches those files with live here too, once
+more than one family asks about the same thing: two families ask
+whether a workflow invokes pre-commit, and they need to agree on how
+one is spelled. PRE_COMMIT_RUN_RE is llm-context-lint-ci's and
+PRE_COMMIT_RUN_ALL_RE, the narrower one, is source-size-ratchet's;
+file_matches() is the helper both use. A constant imported from one
+criterion's check module into another's points the dependency the
+wrong way.
 """
 
 import os
@@ -60,6 +69,82 @@ def file_mentions(repo, path, needle):
         if line.lstrip().startswith('#'):
             continue
         if needle in line:
+            return True
+    return False
+
+
+#: A workflow invoking pre-commit's `run` subcommand at all, whether
+#: over the whole config or naming one hook. A criterion asking
+#: whether its own tool reaches CI is answered by this as well as by
+#: a workflow naming the tool: requiring the name as well would report a
+#: repository as non-compliant for a wiring that does run it -- and
+#: would fail the reference invocation in this repository's own
+#: consistency-audit.yml, which installs skillsaw from PyPI and so
+#: never names the upstream repository either.
+#:
+#: This is llm-context-lint-ci's pattern, asked about skillsaw.
+#: source-size-ratchet asks a different question and uses
+#: PRE_COMMIT_RUN_ALL_RE below. The two live together because both
+#: are about how an invocation of pre-commit is spelled, and a
+#: spelling one of them learned (the quoted venv path, the module
+#: form) is one the other needs as well.
+#:
+#: The command is matched however it is spelled: bare, as a quoted
+#: path into a venv ("${RUNNER_TEMP}/venv/bin/pre-commit" run, which
+#: is how this repository's own ci.yml calls it, so the closing quote
+#: sits between the command and its subcommand), or as the module
+#: (python -m pre_commit run). Only the run subcommand counts:
+#: installing pre-commit, or running "pre-commit install", runs no
+#: hook.
+PRE_COMMIT_RUN_RE = re.compile(r'pre[-_]commit[\'"]?\s+run\b')
+
+
+#: The same invocation, narrowed to one that runs the *whole* config.
+#:
+#: This is source-size-ratchet's pattern. The contrast with
+#: PRE_COMMIT_RUN_RE above is the subtle part, and it is a difference
+#: in the question being asked rather than in strictness for its own
+#: sake. A criterion asking whether a particular tool runs
+#: in CI at all is answered by `pre-commit run skillsaw --all-files`:
+#: that is the tool running. A criterion asking whether CI runs *its
+#: own* hook is not, because a repository that runs each hook as its own
+#: job reaches only the hooks it names -- and would otherwise pass on
+#: the strength of somebody else's job.
+#:
+#: So the token after `run` has to be a flag rather than a hook id:
+#: `pre-commit run --all-files` matches and `pre-commit run skillsaw`
+#: does not. A trailing backslash counts as well, since the flags are
+#: then on the next line and these patterns are matched a line at a
+#: time. A bare `pre-commit run` is not matched: with nothing staged,
+#: which is a fresh CI clone, it runs no hook over no file.
+#:
+#: Everything PRE_COMMIT_RUN_RE tolerates about how the command is
+#: spelled is tolerated here: a quoted path into a venv, the module
+#: form, and the `pre_commit` underscore spelling.
+#:
+#: The known false positive is a flag that takes a value followed by
+#: a hook id, `pre-commit run --hook-stage push <hook>`, which this
+#: accepts. Reading past the first token would mean knowing which
+#: flags take values, and no workflow in the fleet is written that
+#: way; the narrow pattern exists to stop the common shape, a job
+#: that lints one other thing, not to resist a determined reading.
+PRE_COMMIT_RUN_ALL_RE = re.compile(
+    r'pre[-_]commit[\'"]?\s+run\s*(?:-|\\\s*$)')
+
+
+def file_matches(repo, path, pattern):
+    """Does a repository file match a regex, outside of its comments?
+
+    The comment handling matches file_mentions: a header comment
+    describing what something else does must not count as doing it.
+    """
+    content = repo.read(path)
+    if content is None:
+        return False
+    for line in content.split('\n'):
+        if line.lstrip().startswith('#'):
+            continue
+        if pattern.search(line):
             return True
     return False
 

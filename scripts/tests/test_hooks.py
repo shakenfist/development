@@ -321,6 +321,41 @@ class SuiteLocationTest(unittest.TestCase):
             missed, [],
             'no pre-commit hook runs these:\n  ' + '\n  '.join(missed))
 
+    def test_no_suite_defines_a_class_after_its_main_block(self):
+        """A class below `unittest.main()` is run by discovery and by nothing else.
+
+        `python3 scripts/tests/test_x.py` calls main() at the block,
+        which exits, so every case in a class defined after it is
+        skipped and the run still reports OK. The suites' docstrings
+        tell a reader to run them that way, so a hidden half is a
+        green result about half of what it names. Asserted here, over
+        every suite, because the mistake was made twice before anybody
+        wrote it down.
+        """
+        misplaced = []
+        for path in sorted(self._modules(tracked_files())):
+            with open(os.path.join(repo_root(), path), encoding='utf-8') as f:
+                tree = ast.parse(f.read(), filename=path)
+            main_line = None
+            for node in tree.body:
+                if main_line is None and isinstance(node, ast.If):
+                    for child in ast.walk(node):
+                        if (isinstance(child, ast.Call)
+                                and isinstance(child.func, ast.Attribute)
+                                and child.func.attr == 'main'
+                                and isinstance(child.func.value, ast.Name)
+                                and child.func.value.id == 'unittest'):
+                            main_line = node.lineno
+                            break
+                elif main_line is not None and isinstance(node, ast.ClassDef):
+                    misplaced.append(
+                        f'{path}: class {node.name} (line {node.lineno}) is '
+                        f'defined after unittest.main() (line {main_line})')
+        self.assertEqual(
+            misplaced, [],
+            'move the __main__ block to the end of the file:\n  '
+            + '\n  '.join(misplaced))
+
 
 class RenovateConfigHookTest(unittest.TestCase):
     """Every Renovate configuration here is validated by exactly one hook.

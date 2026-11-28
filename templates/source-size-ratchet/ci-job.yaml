@@ -1,0 +1,58 @@
+# A CI job for the source size ratchet, from shakenfist/development's
+# templates/source-size-ratchet/. Optional: for a repository whose CI
+# runs its pre-commit hooks one job at a time rather than with a
+# single `pre-commit run --all-files`. Where CI runs that one command,
+# the hook stanza already gates merges and this job adds nothing.
+# Paste the stanza into the `jobs:` map of the workflow that runs the
+# repository's checks, as it stands -- it is indented to sit there.
+#
+# This file is not a workflow, so Renovate's workflow manager does not
+# see it and the checkout pin below never gets an update pull request.
+# The pin is the one shakenfist/development uses; re-pin it to
+# whatever the adopting repository pins, and re-check it when that
+# changes.
+  source-size-ratchet:
+    name: source size ratchet
+    # Edit this to a runner label the adopting repository has.
+    runs-on: [self-hosted, static]
+    timeout-minutes: 15
+    # Fork-guarded, because the job runs tools/source-size-ratchet.py
+    # from the checkout, which a fork can edit, and this fleet's CI
+    # runs on self-hosted runners: running a fork's version of the
+    # script would be arbitrary code execution on our own
+    # infrastructure. The consequence is deliberate: a fork pull
+    # request reports no ratchet verdict. Do not drop the guard to
+    # regain it; run the ratchet from a trusted workflow against a
+    # pinned copy of the script instead.
+    #
+    # No merge_group exclusion, deliberately: the check takes
+    # seconds, and on the queue it measures the tree that is about
+    # to land rather than the pull request's head. A repository that
+    # sorts its jobs into a pull request tier and a smaller merge
+    # tier -- ryll does, and its own copy of this job carries
+    # `github.event_name != 'merge_group'` for that reason -- should
+    # instead put this job in whichever tier gates its merges.
+    if: >-
+      github.event_name != 'pull_request'
+      || github.event.pull_request.head.repo.full_name == github.repository
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-source-size-ratchet
+      cancel-in-progress: true
+    # Read-only: the job runs a script from the checkout and needs no more.
+    permissions:
+      contents: read
+    steps:
+      # Nothing here pushes, and the script below would otherwise find the
+      # token in the checkout's git config.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # -I (isolated mode) keeps tools/ off sys.path, so a module a pull
+      # request plants there, such as tools/fnmatch.py, cannot shadow
+      # the standard library and run inside the check. No path filter,
+      # for the same reason the hook is `always_run`: a source file
+      # anywhere, the baseline or the exclude file can change the
+      # verdict, and the job takes seconds.
+      - name: Check source files against the baseline
+        run: python3 -I tools/source-size-ratchet.py
