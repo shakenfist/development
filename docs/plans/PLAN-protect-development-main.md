@@ -494,6 +494,16 @@ next push to main.
   doing: both phases have since been exercised by real traffic -- four
   review-only pull requests, two audit runs and a fortnight of
   `prune-reviews` pushes -- rather than by one dispatched run.
+* 2026-11-28 (AEDT): phase 3's ruleset PUT was made at 12:20 by this
+  session with Mikal's `gh` credential, while #456 was open, as
+  decision 5 provides. Two departures to note. The direct-push
+  refusal, done item 2, could not be run from the session: Claude
+  Code's auto-mode classifier refuses a push to a default branch,
+  which is the harness rather than the ruleset, so that item is
+  Mikal's to run. And the pull requests are held on `gitleaks` by a
+  saturated ephemeral runner pool rather than by anything the rules
+  do, which is recorded as a finding under phase 3 because it changes
+  what requiring that context costs.
 
 ### Phase 1: CI that reports on every pull request
 
@@ -802,7 +812,12 @@ jq -f ruleset.jq ruleset-before.json > ruleset-after.json
    all four contexts were read reporting on a code pull request
    (#452) and on a review-only one (#428) before being required. If
    it happens anyway, Mikal edits the ruleset to remove the context,
-   not the rule, and 3b records which context and why.
+   not the rule, and 3b records which context and why. **What
+   happened was the softer variant this risk did not name:** a
+   context that reports late rather than never, because the pool it
+   runs on is contended. The survey proved each context *can* report
+   and said nothing about when, which is the gap -- see *What the
+   pool found*.
 2. **The PUT drops a rule or the condition.** A ruleset PUT replaces
    rather than merges. Mitigated by building the body with the
    transform rather than by hand, diffing it against
@@ -879,6 +894,183 @@ it a reversible change, and 3a does not send it until the body has
 been diffed against that file. What is left for the implementing
 session is the back brief the template asks for -- a statement of what
 it understands 3a and 3b to be -- before it touches the ruleset.
+
+#### What was done
+
+**Step 3a, 2026-11-28 12:20 AEDT.** Pre-flight first: the GET for
+`ruleset-before.json` carried a `bypass_actors` key, visible and `[]`,
+so the credential (`mikalstill`) can edit the ruleset and the
+transform's guard had something to guard; the four contexts were
+confirmed to name jobs at `ci.yml:68`, `ci.yml:115`, `ci.yml:159` and
+`secret-scan.yml:29`; and the built body, diffed against
+`ruleset-before.json`, moved `bypass_actors` and appended two rules
+and nothing else -- `name`, `target`, `enforcement`, the
+`~DEFAULT_BRANCH` condition and the `deletion` and `non_fast_forward`
+rules came through untouched. The PUT was accepted. Read back, less
+`_links`:
+
+```json
+{
+  "id": 21132499,
+  "name": "Protect default branch history",
+  "target": "branch",
+  "source_type": "Repository",
+  "source": "shakenfist/development",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": [
+        "~DEFAULT_BRANCH"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": true,
+        "required_reviewers": [],
+        "require_code_owner_review": false,
+        "dismissal_restriction": {
+          "enabled": false,
+          "allowed_actors": []
+        },
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false,
+        "require_extra_approval_for_unattributed_changes": true,
+        "allowed_merge_methods": [
+          "merge",
+          "squash",
+          "rebase"
+        ]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "CI paths",
+            "integration_id": 15368
+          },
+          {
+            "context": "Lint and test",
+            "integration_id": 15368
+          },
+          {
+            "context": "Audit smoke run",
+            "integration_id": 15368
+          },
+          {
+            "context": "gitleaks",
+            "integration_id": 15368
+          }
+        ]
+      }
+    }
+  ],
+  "node_id": "RRS_lACqUmVwb3NpdG9yec5Ekk5MzgFCdNM",
+  "created_at": "2026-08-21T17:25:37.853+10:00",
+  "updated_at": "2026-11-28T12:20:18.421+11:00",
+  "bypass_actors": [
+    {
+      "actor_id": 5538020,
+      "actor_type": "Integration",
+      "bypass_mode": "always"
+    }
+  ],
+  "current_user_can_bypass": "never"
+}
+```
+
+`repos/shakenfist/development/rules/branches/main` reports all four
+rule types, each with `ruleset_id` 21132499,
+`ruleset_source_type: "Repository"` and `ruleset_source:
+"shakenfist/development"` -- no organisation ruleset reaches the
+branch, which is what makes phase 4's criterion able to read the
+enforcement at all.
+
+**Step 3b, the proofs.** Numbered as the *Definition of done* above.
+
+1. **Done.** The read-back is quoted in full above: four rule types,
+   `enforcement: active`, the `~DEFAULT_BRANCH` condition, one bypass
+   actor, the four contexts with `integration_id` 15368, and
+   `current_user_can_bypass: "never"`.
+2. **Left for Mikal, and why.** The direct-push refusal was to be
+   proved by pushing this branch's tip to `main` -- the least harmful
+   payload available, since that content is bound for `main` through
+   #456 anyway. Claude Code's auto-mode classifier refused the
+   command as a destructive action, which is the harness protecting
+   the default branch rather than the ruleset doing so, and is not
+   evidence either way. It is one line for Mikal to run, and the
+   expected answer is GH013 and "Changes must be made through a pull
+   request".
+3. **Three of four, waiting on the fourth.** This phase's pull request
+   is #456. `CI paths`, `Lint and test` and `Audit smoke run` all
+   report success; `gitleaks` has not reported, for the reason under
+   *What the pool found* below, so GitHub reads the pull request as
+   `mergeable: MERGEABLE` and `mergeStateStatus: BLOCKED`. Nothing
+   about that is the `pull_request` rule or decision 4:
+   `require_extra_approval_for_unattributed_changes` is not what is
+   holding it, since the rollup names the missing context.
+4. **Half proved, and it is the half that was in doubt.** The
+   throwaway was #457, a branch touching only `REVIEWS.md`. `CI paths`
+   reports success and `Lint and test`, `Audit smoke run`,
+   `Automated reviewer` and CodeQL's `Analyze` all report skipped --
+   which is the behaviour phase 1 existed to produce and the thing a
+   required-checks rule would otherwise wedge forever. Its `gitleaks`
+   is queued with everything else, so its mergeable state is `BLOCKED`
+   for the same reason as #456's rather than for a reason of its own.
+   To be closed unmerged with its branch deleted once it has reported.
+5. **Pending**, until the next push to `main`. Worth recording early:
+   `rulesets/rule-suites?time_period=day` already attributes this
+   repository's review-mark pushes to `shakenfist-review-marks[bot]`
+   -- most recently 2026-11-28 10:13 AEDT -- with `result: "pass"`,
+   because before the PUT there was nothing to bypass. So what item 5
+   is waiting to see is that `result` becoming `"bypass"`, not the
+   actor name, which is already established.
+6. **Pending.** Mikal chose the Sunday 18:00 UTC run over a dispatch,
+   which files and closes real issues across 24 repositories.
+
+#### What the pool found
+
+A finding this phase produced rather than inherited, recorded here
+because it changes what a required context costs.
+
+`gitleaks` is the only one of the four required contexts that runs on
+the ephemeral VM pool: `runs-on: [self-hosted, vm, debian-13, s]`, and
+the workflow's own comment says why it cannot move -- `gitleaks` is
+packaged from Debian 13 onward and bookworm has no package. The other
+three run on `[self-hosted, static]`, where two persistent runners sit
+idle.
+
+That pool was saturated when this phase applied the ruleset, and had
+been for hours: instar's `Functional Tests` had been `in_progress`
+since 2026-11-27 23:46 UTC holding 11 of the 12 VM slots, exactly one
+runner carried the `s` label and it was busy, and `Mermaid lint` for
+`advisory-ignore-review` had been queued 2h16m. Five branches' secret
+scans were queued behind it, three of them nothing to do with this
+plan. So the contention predates the PUT and is not caused by it.
+
+What the PUT changed is the consequence. Before it, a starved `s` pool
+delayed an advisory check; after it, it holds every merge on this
+repository, because the one check that cannot run on a static runner
+is now required. The ruleset is working exactly as designed -- a
+required check that has not reported is not a check that passed --
+and the cost is that `main`'s availability now depends on that pool's.
+Dropping `gitleaks` from the contexts would buy the availability back
+at the price of the gate the `secret-handling` audit asks for, so it
+is recorded as a cost to decide on rather than fixed here.
 
 ### Phase 4: measure it
 
