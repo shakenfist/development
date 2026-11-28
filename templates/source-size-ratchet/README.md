@@ -86,8 +86,36 @@ whole, so the baseline is exactly the list of files that owe one.
    indented to sit under `repos:` as it stands; if the file already
    has a `repo: local` entry, add the hook to that entry's `hooks:`
    instead. The comments in the stanza say why each setting is what
-   it is. There is no workflow to add: the fleet's CI already runs
-   `pre-commit run --all-files`, so the hook gates merges too.
+   it is. Then check how the adopting repository's CI runs its
+   hooks, and add a job where it runs them individually: the hook
+   alone gates only commits by people who have hooks installed, not
+   merges, and not a branch pushed with `--no-verify`. ryll is the
+   worked example. It runs `skillsaw` through pre-commit and gives
+   every other hook a CI job of its own, deliberately, so a failure
+   is reported under one name and holds one runner; its
+   `.github/workflows/ci.yml` job `source-size-ratchet` mirrors that
+   repository's bidi scan. Three things about it are not obvious. It
+   runs `python3 -I tools/source-size-ratchet.py` on a plain
+   `actions/checkout`. It is fork-guarded, because it runs a script
+   from the checkout, which a fork can edit. And it deliberately
+   does not restrict itself to changed paths, for the same reason
+   the hook stanza is `always_run`: a source file anywhere, the
+   baseline or the exclude file can change the verdict, and the job
+   takes seconds. A consistency audit that reads
+   `.pre-commit-config.yaml` sees the hook and not the job, so a
+   missing job is not something an audit will catch for you. One
+   consequence of the fork guard is worth deciding rather than
+   inheriting: ryll's enqueue and automated-reviewer gates count a
+   skipped job as success, so on a fork pull request the job does
+   not run and nothing reports a ratchet verdict, while the pull
+   request can still enqueue. That is the right trade for a job
+   that executes a script the fork controls: this fleet's CI runs
+   on self-hosted runners, so running a fork's version of the
+   script is arbitrary code execution on our own infrastructure.
+   Dropping the guard to regain coverage is therefore not one of
+   the options. An adopter who wants fork branches measured runs
+   the ratchet from a trusted workflow against a pinned copy of
+   the script instead.
 3. If the repository tracks generated or vendored source, write
    `tools/source-size-exclude` first (see below), so those files never
    enter the baseline.
@@ -162,6 +190,16 @@ because the tool rewrites the file's comments away.
 The failure message names each file, its length and its entry, and
 gives the two honest fixes: shrink it, or raise the entry and explain.
 Shrinking a file by deleting its comments is not one of them.
+
+An adopter taking a function-length lint (clippy's
+`too_many_lines`) at the same time should expect to raise entries in
+the adopting pull request. The exemption reasons live next to the
+functions they excuse, so they lengthen files that are already
+baselined. In ryll, thirteen `#[expect]` reasons added 70 lines of
+prose to six files in the baseline, and six entries were raised in
+the pull request that adopted both. `--update` never raises an
+entry, so this is a hand edit, explained in the pull request
+description, which is where the baseline design puts the judgement.
 
 ## Shrinking
 
