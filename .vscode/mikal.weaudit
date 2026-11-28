@@ -713,10 +713,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/merge-queue-config.md",
       "author": "mikal"
     },
@@ -985,10 +981,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/llm-doc-structure.md",
       "author": "mikal"
     },
@@ -1054,10 +1046,6 @@
     },
     {
       "path": "renovate-fleet.json",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_issue_fix_measurement.py",
       "author": "mikal"
     },
     {

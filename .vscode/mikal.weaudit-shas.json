@@ -41,10 +41,6 @@
       "sha": "f9e0c8a01e5341267947151fefab721c5a7a3842",
       "date": "2026-11-16"
     },
-    ".github/workflows/consistency-audit.yml": {
-      "sha": "730e1302def379a6dfd61986872698b3bb0cd342",
-      "date": "2026-11-25"
-    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
       "date": "2026-09-27"
@@ -96,10 +92,6 @@
     "README.md": {
       "sha": "b5e5509d9cb9e529de4cda9642b8c4ccbc84e3b4",
       "date": "2026-11-17"
-    },
-    "docs/audits/README.md": {
-      "sha": "b33966d094e62a1f1822539f0b24b949a496996f",
-      "date": "2026-11-15"
     },
     "docs/audits/bypass-actor-identity.md": {
       "sha": "305df37d99d84ef7a729a1dfbb523940bc985ed2",
@@ -628,10 +620,6 @@
     "scripts/tests/test_issue_fix_extraction.py": {
       "sha": "717622242c159d7ea0101c2c5178cb2d8dcb3eba",
       "date": "2026-11-17"
-    },
-    "scripts/tests/test_issue_fix_measurement.py": {
-      "sha": "bb636ef7f9ceabd60ac8113c3614106895035ead",
-      "date": "2026-11-26"
     },
     "scripts/tests/test_llm_docs.py": {
       "sha": "25371b66c0cefc2ab495e451022839bca1746d8d",
