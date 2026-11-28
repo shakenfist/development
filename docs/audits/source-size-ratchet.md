@@ -17,7 +17,7 @@ The hook and the lane are required together, and each is judged on its
 own. A repository with a lane and no hook is told only that the hook is
 missing, and one with a hook and no lane only that CI does not reach
 it; the finding about the lane appears only when no workflow runs every
-hook and none invokes the script.
+hook, none invokes the script, and none runs the ratchet's hook by id.
 
 The copy is compared as bytes, not as text, so a copy that differs
 only in its line endings fails. A copy that is missing fails, and so
@@ -27,34 +27,52 @@ checkout, a directory, or a file over the read cap.
 The hook is matched by its `entry:` value rather than by its id, so a
 repository that renamed the hook still passes, and a comment naming the
 tool does not. Neither does the path in a `files:` or `exclude:`
-pattern: that names the script without running it.
+pattern, or in a sibling key of a hook whose `entry:` runs something
+else: that names the script without running it. The entry may be a
+plain, quoted or block scalar, and may be the first key of its hook's
+list item.
 
-Likewise "invokes" means an invocation. In a workflow it is `python` or
-`python3`, with or without `-I`, or `./`, in front of the path. The
-path in an `on.<event>.paths` filter, a paths-filter list or a `git
+The CI lane is any one of three shapes:
+
+* a workflow running every hook, as `pre-commit run --all-files` does;
+* a workflow invoking the script, which is `python` or `python3`, with
+  or without `-I`, or `./`, in front of the path;
+* a workflow running the hook by name, `pre-commit run <id>`, where
+  `<id>` is the `id:` that this repository's own config gives the hook
+  whose `entry:` runs the script. The id is the repository's to choose,
+  so it is read from the config rather than fixed.
+
+The path in an `on.<event>.paths` filter, a paths-filter list or a `git
 diff --name-only` grep triggers or selects something and runs nothing,
-so it is not a lane.
+so it is not a lane. Nor is `pre-commit run <some other hook>`, which
+runs that hook and no others.
 
-A repository whose index holds no file with a source
-extension the script counts is reported as not applicable.
-
-Which source extensions those are is read out of the template itself,
-so this criterion cannot disagree with the tool about what counts.
+A repository whose index holds no file with a source extension the
+script counts is reported as not applicable. Which extensions those
+are -- C, C++, Go, Rust, Python, shell, CSS and the JavaScript and
+TypeScript family -- is `SOURCE_EXTENSIONS` in the template's own
+`source-size-ratchet.py`, and the criterion reads the list out of
+that file rather than keeping one of its own, so the two cannot
+disagree about what counts. Read it there rather than from a copy on
+this page: a list restated in prose is how the note about which
+criteria reach the network once fell two checks behind what the audit
+did.
 
 ## Why the CI lane is part of it
 
 A hook in `.pre-commit-config.yaml` gates a commit made by somebody
 who has pre-commit installed. It gates a merge only if something in CI
 runs it, and until it does, a branch pushed with `--no-verify` carries
-whatever it likes. Both shapes the fleet uses are accepted: a single
+whatever it likes. The shapes the fleet uses are accepted: a single
 lane running `pre-commit run --all-files`, which runs every declared
 hook, and a job per hook, which reaches this one by invoking the script
-directly.
+directly or by running the hook under its own id.
 
-An invocation that names a single hook -- `pre-commit run <some other
-hook>` -- is not a lane for this criterion. It runs that hook and no
-others, so a repository whose ratchet job had been deleted would
-otherwise pass on the strength of a job that lints something else.
+An invocation that names a single *other* hook -- `pre-commit run
+<some other hook>` -- is not a lane for this criterion. It runs that
+hook and no others, so a repository whose ratchet job had been deleted
+would otherwise pass on the strength of a job that lints something
+else.
 
 ## Why a ratchet at all
 

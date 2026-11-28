@@ -1654,6 +1654,48 @@ are fixed and a test now asserts that no suite defines a class after
 its `main` block, so the third instance fails at the hook instead of
 being found by a reviewer.
 
+Review round 2: 2 fix, 6 consider, 3 none; both fixes and four of
+the considers taken. Both fixes were about code round 1 added, which
+is the convergence signal worth watching, and both were wrong
+verdicts rather than wrong prose, so both were worth taking.
+
+Round 1's narrowing of the lane test closed a false pass and opened a
+false fail: `pre-commit run source-size-ratchet --all-files`, which is
+the natural way to run this one hook as its own job, matched neither
+accepted shape. The lane now also accepts a run of the hook by the id
+the config gives it, read from the config rather than fixed, so a
+repository that renamed the hook is measured on its own name.
+
+The `entry:` scanner round 1 hand-rolled captured the indent before
+the `- ` of a list item, so for a hook whose first key was `entry:`
+every sibling key read as a continuation of the value -- a `files:`
+pattern naming the script counted as invoking it, which is a false
+pass. The scanner is deleted rather than repaired:
+`audit/text/pre_commit.py` already parses a config into hooks and
+their keys, two other check modules use it, and the same parse is
+what supplies the hook id above.
+
+Also taken: an unterminated `#[` masked to end of file, so a later
+genuine bare allow was reported at the wrong line; and the `reason =`
+search ran over the whole attribute while round 1 had scoped the lint
+name to its own `allow(...)` group, so a reason explaining a sibling
+`expect` excused the allow -- the other half of round 1's fix.
+
+Declined: the dotted TOML spellings of the lint, because no Rust
+repository in the fleet uses them, the spec states the forms that
+count, and `rust-unwrap-lint` has the same limit, so fixing one
+criterion alone would leave the two disagreeing about what TOML
+means. Also declined: the memory cost of reading every tracked `.rs`
+into the read cache.
+
+The spec gained the twenty counted extensions as prose in this round
+and lost them again in review. The criterion reads that list out of
+the template with `ast` precisely so it cannot disagree with the
+tool, and a copy in prose is the thing that drifts: the note about
+which criteria reach the network fell two checks behind that way,
+which is why `docs/consistency-audits.md` says to read such a list at
+its source. The spec now points at the template instead.
+
 #### Back brief
 
 Two gates, both because the work after them is cheap to propose

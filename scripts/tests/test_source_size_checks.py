@@ -375,6 +375,71 @@ class SourceExtensionsFailureTest(unittest.TestCase):
         self.assertEqual(read.call_count, 1)
 
 
+#: A job that runs this one hook by its id, which is how a repository
+#: that runs each hook as its own job spells it.
+RUN_BY_ID_WORKFLOW = """\
+name: ci
+on: [pull_request]
+jobs:
+  source-size-ratchet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: pre-commit run source-size-ratchet --all-files
+"""
+
+#: The hook under an id of the repository's own choosing.
+CONFIG_RENAMED_HOOK = CONFIG.replace('id: source-size-ratchet', 'id: size-gate')
+
+#: The ratchet declared with `entry:` as the first key of its list
+#: item, so that the dash and the key share a line.
+CONFIG_ENTRY_FIRST = """\
+repos:
+  - repo: local
+    hooks:
+      - entry: python3 -I tools/source-size-ratchet.py
+        id: source-size-ratchet
+        name: source size ratchet
+        language: system
+"""
+
+#: The same, with the entry a block scalar opened on the dash's line.
+CONFIG_ENTRY_FIRST_BLOCK = """\
+repos:
+  - repo: local
+    hooks:
+      - entry: >-
+          python3 -I
+          tools/source-size-ratchet.py
+        id: source-size-ratchet
+        language: system
+"""
+
+#: Another command as the first key, and the script named by a sibling
+#: `files:` key, which is not part of what the entry runs.
+CONFIG_ENTRY_FIRST_THEN_FILES = """\
+repos:
+  - repo: local
+    hooks:
+      - entry: python3 -I tools/other.py
+        id: other
+        language: system
+        files: tools/source-size-ratchet.py
+"""
+
+CONFIG_ENTRY_FIRST_BLOCK_THEN_FILES = """\
+repos:
+  - repo: local
+    hooks:
+      - entry: >-
+          python3 -I
+          tools/other.py
+        id: other
+        language: system
+        files: tools/source-size-ratchet.py
+"""
+
+
 class SourceSizeRatchetTest(CheckTestCase):
     check_class = source_size.SourceSizeRatchet
 
@@ -603,6 +668,70 @@ class SourceSizeRatchetTest(CheckTestCase):
             self.check_with(config=CONFIG_BLOCK_ENTRY_THEN_FILES,
                             workflows={'ci.yml': PRE_COMMIT_WORKFLOW}),
             '.pre-commit-config.yaml does not invoke')
+
+    def test_a_job_running_the_hook_by_id_is_a_lane(self):
+        self.build(workflows={'ci.yml': RUN_BY_ID_WORKFLOW})
+        self.assert_pass(self.check())
+
+    def test_the_hook_is_run_by_the_id_the_config_gives_it(self):
+        # The id is the repository's own: a job naming the template's
+        # id runs nothing here, and one naming the renamed id runs it.
+        result = self.assert_fail(
+            self.check_with(config=CONFIG_RENAMED_HOOK,
+                            workflows={'ci.yml': RUN_BY_ID_WORKFLOW}),
+            'no workflow runs every pre-commit hook')
+        self.assertNotIn('does not invoke tools/', result['details'])
+        self.fresh_fixture()
+        self.build(config=CONFIG_RENAMED_HOOK, workflows={
+            'ci.yml': RUN_BY_ID_WORKFLOW.replace(
+                'source-size-ratchet --all', 'size-gate --all')})
+        self.assert_pass(self.check())
+
+    def test_an_id_that_only_starts_like_the_hooks_is_not_a_lane(self):
+        self.assert_fail(
+            self.check_with(workflows={'ci.yml': RUN_BY_ID_WORKFLOW.replace(
+                'source-size-ratchet --all',
+                'source-size-ratchet-extra --all')}),
+            'no workflow runs every pre-commit hook')
+
+    def test_running_the_hook_by_id_needs_the_hook_declared(self):
+        # No hook runs the ratchet, so there is no id to match, and the
+        # workflow's own naming of one proves nothing.
+        result = self.assert_fail(
+            self.check_with(config=CONFIG_WITHOUT_HOOK,
+                            workflows={'ci.yml': RUN_BY_ID_WORKFLOW}),
+            'does not invoke tools/source-size-ratchet.py')
+        self.assertEqual(len(self.findings(result)), 2)
+
+    def test_an_entry_as_the_first_key_of_the_item_is_the_hook(self):
+        for shape, config in (('inline', CONFIG_ENTRY_FIRST),
+                              ('block', CONFIG_ENTRY_FIRST_BLOCK)):
+            with self.subTest(shape):
+                self.fresh_fixture()
+                self.build(config=config,
+                           workflows={'ci.yml': PRE_COMMIT_WORKFLOW})
+                self.assert_pass(self.check())
+
+    def test_a_files_key_after_an_entry_first_key_is_not_the_hook(self):
+        for shape, config in (
+                ('inline', CONFIG_ENTRY_FIRST_THEN_FILES),
+                ('block', CONFIG_ENTRY_FIRST_BLOCK_THEN_FILES)):
+            with self.subTest(shape):
+                self.fresh_fixture()
+                result = self.assert_fail(
+                    self.check_with(
+                        config=config,
+                        workflows={'ci.yml': PRE_COMMIT_WORKFLOW}),
+                    '.pre-commit-config.yaml does not invoke '
+                    'tools/source-size-ratchet.py')
+                self.assertEqual(len(self.findings(result)), 1)
+
+    def test_the_skip_reason_does_not_list_the_extensions(self):
+        self.build(script=None, config=None, source=False)
+        result = self.assert_skip(
+            self.check(),
+            'No tracked source files for the ratchet to count')
+        self.assertLess(len(result['details']), 80)
 
 
 class RustFunctionLengthLintTest(CheckTestCase):
@@ -843,6 +972,45 @@ class RustFunctionLengthLintTest(CheckTestCase):
             '#[cfg_attr(test, expect(dead_code), '
             'allow(clippy::too_many_lines))]\n'
             'fn b() {}\n'), 'lib.rs:1')
+
+    def test_an_unclosed_attribute_is_not_one_that_swallows_the_file(self):
+        """A `#[` that never closes is no attribute.
+
+        Chosen: a genuine bare allow further down is reported at its
+        own line. Before, the unclosed attribute ran to the end of the
+        file, took the allow inside its masked text, and reported it
+        against the line the broken one opened on.
+        """
+        result = self.with_source(
+            '#[derive(Debug\n'
+            'struct A;\n\n'
+            '#[allow(clippy::too_many_lines)]\n'
+            'fn b() {}\n')
+        self.assert_fail(result, 'crates/thing/src/lib.rs:4')
+        self.assertNotIn('lib.rs:1', result['details'])
+
+    def test_an_unclosed_attribute_alone_is_not_a_finding(self):
+        self.assert_pass(self.with_source(
+            'fn a() {}\n#[cfg(test\nfn b() {}\n'))
+
+    def test_an_unclosed_attribute_hides_no_explained_allow_either(self):
+        self.assert_pass(self.with_source(
+            '#[derive(Debug\n'
+            'struct A;\n\n'
+            '#[allow(clippy::too_many_lines, reason = "one big match")]\n'
+            'fn b() {}\n'))
+
+    def test_a_reason_on_a_sibling_expect_does_not_explain_the_allow(self):
+        self.assert_fail(self.with_source(
+            '#[cfg_attr(test, allow(clippy::too_many_lines), '
+            'expect(dead_code, reason = "x"))]\n'
+            'fn b() {}\n'), 'lib.rs:1')
+
+    def test_a_reason_in_the_allow_beside_an_expect_without_one_passes(self):
+        self.assert_pass(self.with_source(
+            '#[cfg_attr(test, expect(dead_code), '
+            'allow(clippy::too_many_lines, reason = "one big match"))]\n'
+            'fn b() {}\n'))
 
     def test_an_expect_is_not_flagged(self):
         self.assert_pass(self.with_source(

@@ -56,7 +56,7 @@ Concretely, we require:
 4. No tracked `.rs` file carries a bare
    `#[allow(clippy::too_many_lines)]`. An allow is accepted when it
    gives a reason: either `reason = "..."` with something in the
-   string, inside the attribute, or a comment on the line immediately
+   string, inside the same `allow(...)` that names the lint, or a comment on the line immediately
    above the attribute's first line. Three forms of comment are
    distinguished:
 
@@ -79,12 +79,18 @@ Concretely, we require:
    inside its own parentheses. `#[cfg_attr(test, allow(clippy::too_many_lines))]`
    is found; `#[cfg_attr(test, expect(clippy::too_many_lines),
    allow(dead_code))]` is not, because the lint is handled by `expect`.
+   Likewise a reason belongs to the `allow` it is written in:
+   `#[cfg_attr(test, allow(clippy::too_many_lines), expect(dead_code,
+   reason = "..."))]` is flagged, because that reason explains the
+   `expect`.
 
    Attributes span lines -- rustfmt wraps a long one -- so they are
    found by matching their brackets, not by searching line by line. A
    line search for `expect(clippy::too_many_lines` finds none of the
    thirteen such attributes in the repository this was piloted on, for
-   exactly that reason.
+   exactly that reason. A `#[` whose brackets never balance is not an
+   attribute: a file that does not parse is rustc's to complain about,
+   and the attributes after the break are still read.
 
 ## Why
 

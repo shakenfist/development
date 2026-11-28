@@ -32,6 +32,7 @@ from audit.files import (
     require_tracked_paths, toml_section_has_key,
 )
 from audit.repo import DEVELOPMENT_ROOT, READ_MAX_BYTES, read_within
+from audit.text.pre_commit import item_value, scan_pre_commit_yaml
 
 
 #: The template an adopter copies, and the path it copies it to. The
@@ -52,42 +53,43 @@ RATCHET_INVOCATION_RE = re.compile(
     r'(?:\bpython3?\s+(?:-I\s+)?(?:\./)?|\./)'
     + re.escape(RATCHET_COPY) + r'(?![\w.-])')
 
-#: A pre-commit hook's `entry:` key, with whatever follows it on the
-#: line. The value is a command and the only place a hook says what it
-#: runs: `files:`, `exclude:` and `args:` are regexes and arguments,
-#: which can name any path without running it.
-ENTRY_KEY_RE = re.compile(r'^(\s*)(?:-\s+)?entry:(.*)$')
 
+def ratchet_hook_ids(repo):
+    """The ids of the hooks in the pre-commit config that run the ratchet.
 
-def entry_invokes(repo, path, needle):
-    """Does a pre-commit config have a hook whose `entry:` names needle?
+    A hook runs it if its `entry:` names the script. `entry:` is a
+    command and the only place a hook says what it runs: `files:`,
+    `exclude:` and `args:` are regexes and arguments, which can name
+    any path without running it. Read with the shared pre-commit
+    scanner, which knows which keys belong to which hook, ignores
+    comments and reads block and quoted scalars, so a sibling key is
+    never mistaken for a continuation of the entry.
 
-    Comments do not count, and nor does the needle anywhere but in an
-    `entry:` value. The value may continue onto the lines below it,
-    which is how a long command or a block scalar is written, so the
-    lines indented further than the key are read as its value too.
+    The ids are returned rather than a yes or no because the id is
+    how a workflow job running that one hook names it, and the id is
+    the repository's to choose.
     """
-    content = repo.read(path)
+    content = repo.read(PRE_COMMIT_CONFIG)
     if content is None:
-        return False
-    key_indent = None
-    for line in content.split('\n'):
-        if line.lstrip().startswith('#'):
-            continue
-        if key_indent is not None:
-            indent = len(line) - len(line.lstrip())
-            if line.strip() and indent > key_indent:
-                if needle in line:
-                    return True
-                continue
-            key_indent = None
-        match = ENTRY_KEY_RE.match(line)
-        if not match:
-            continue
-        if needle in match.group(2):
-            return True
-        key_indent = len(match.group(1))
-    return False
+        return []
+    return [
+        item_value(hook, 'id')
+        for hook in scan_pre_commit_yaml(content).hooks()
+        if RATCHET_COPY in (item_value(hook, 'entry') or '')
+    ]
+
+
+def runs_hook_re(hook_id):
+    """A workflow line running the one pre-commit hook with this id.
+
+    `pre-commit run <id>`, with the spellings PRE_COMMIT_RUN_RE
+    tolerates for the command and any flags that take no value between
+    `run` and the id. The id has to end where it ends: a hook called
+    `source-size-ratchet-extra` is not this one.
+    """
+    return re.compile(
+        r'pre[-_]commit[\'"]?\s+run\s+(?:-\S+\s+)*[\'"]?'
+        + re.escape(hook_id) + r'[\'"]?(?![\w.-])')
 
 
 @functools.lru_cache(maxsize=None)
@@ -171,8 +173,8 @@ class SourceSizeRatchet(Check):
         tracked = require_tracked_paths(
             repo.path, *(f'*{extension}' for extension in extensions))
         if not tracked:
-            return (f'No tracked source files for the ratchet to measure '
-                    f'(nothing matching {", ".join(extensions)})')
+            return 'No tracked source files for the ratchet to count'
+
         return None
 
     def run(self, repo):
@@ -198,16 +200,18 @@ class SourceSizeRatchet(Check):
         CI reach is the half a config read cannot answer. A hook in
         `.pre-commit-config.yaml` gates a commit by somebody who has
         hooks installed; it gates a merge only if something in CI runs
-        it. Two shapes count, which are the two the fleet has: a
-        workflow running every hook over the tree, as `pre-commit run
-        --all-files` does, or a workflow invoking the script itself,
-        which is how a repository that runs each hook as its own job
-        reaches it. Invoking it is an interpreter or `./` in front of
-        the path: a `paths:` filter naming the script triggers a
-        workflow on it and runs nothing. An invocation naming a single
-        other hook is neither: it runs that hook and no others, so
-        counting it would pass a repository whose ratchet job had been
-        deleted on the strength of a job that lints something else.
+        it. Three shapes count: a workflow running every hook over
+        the tree, as `pre-commit run --all-files` does; a workflow
+        invoking the script itself, which is how a repository that
+        runs each hook as its own job reaches it; and a workflow
+        running the hook by name, `pre-commit run <id>`, with the id
+        the config gives the hook that runs the ratchet. Invoking the
+        script is an interpreter or `./` in front of the path: a
+        `paths:` filter naming the script triggers a workflow on it
+        and runs nothing. An invocation naming any other hook is none of these: it runs that hook and
+        no others, so counting it would pass a repository whose
+        ratchet job had been deleted on the strength of a job that
+        lints something else.
 
         The two halves are judged independently, so each finding says
         only what is true of its half. A repository with the lane and
@@ -244,7 +248,8 @@ class SourceSizeRatchet(Check):
         elif copy != canonical:
             problems.append(f'{RATCHET_COPY} differs from {RATCHET_TEMPLATE}')
 
-        if not entry_invokes(repo, PRE_COMMIT_CONFIG, RATCHET_COPY):
+        hook_ids = ratchet_hook_ids(repo)
+        if not hook_ids:
             problems.append(
                 f'{PRE_COMMIT_CONFIG} does not invoke {RATCHET_COPY}')
 
@@ -263,15 +268,22 @@ class SourceSizeRatchet(Check):
             file_matches(repo, workflow, PRE_COMMIT_RUN_ALL_RE)
             for workflow in workflows
         )
+        # The hook's own id, from the config, since the id is the
+        # repository's to choose: `pre-commit run <that id>` runs this
+        # hook, where `pre-commit run <any other id>` does not.
+        lane_patterns = [RATCHET_INVOCATION_RE]
+        lane_patterns.extend(runs_hook_re(hook_id) for hook_id in hook_ids)
         runs_directly = any(
-            file_matches(repo, workflow, RATCHET_INVOCATION_RE)
+            file_matches(repo, workflow, pattern)
             for workflow in workflows
+            for pattern in lane_patterns
         )
         if not runs_every_hook and not runs_directly:
             problems.append(
                 f'no workflow runs every pre-commit hook (as `pre-commit run '
-                f'--all-files` does) or invokes {RATCHET_COPY}, so nothing '
-                f'gates a merge or a branch pushed with --no-verify')
+                f'--all-files` does) or invokes {RATCHET_COPY} or the hook '
+                f'that runs it, so nothing gates a merge or a branch pushed '
+                f'with --no-verify')
 
         if problems:
             return self.fail(
@@ -370,8 +382,12 @@ def mask_attribute(text, pos):
     masked, so that a match on the result cannot be fooled by a reason
     that happens to mention a lint, and can still tell an empty reason
     from a stated one. An attribute that never closes -- the file ends
-    first -- ends at the end of the file rather than raising: a file
-    that does not parse is rustc's to complain about.
+    first -- is not an attribute: the masked text is None, and the
+    caller carries on from just after the `[`. Taking it to the end of
+    the file instead would make one "attribute" of everything below
+    it, and report a genuine allow further down against the line the
+    broken one opened on. A file that does not parse is rustc's to
+    complain about; this only has to not misreport it.
     """
     out = []
     depth = 0
@@ -410,8 +426,8 @@ def mask_attribute(text, pos):
         elif char == ']':
             depth -= 1
             if depth == 0:
-                break
-    return ''.join(out), pos
+                return ''.join(out), pos
+    return None, pos
 
 
 def rust_attributes(text):
@@ -451,23 +467,35 @@ def rust_attributes(text):
             if text.startswith('!', pos):
                 pos += 1
             if text.startswith('[', pos):
-                masked, pos = mask_attribute(text, pos)
-                found.append((start, masked))
+                masked, end_of_attribute = mask_attribute(text, pos)
+                if masked is None:
+                    # Resume inside the unclosed attribute rather than
+                    # after it, so a genuine one nested in it is found.
+                    pos += 1
+                else:
+                    found.append((start, masked))
+                    pos = end_of_attribute
         else:
             pos += 1
     return found
 
 
-def allows_too_many_lines(masked):
-    """Does a masked attribute have `too_many_lines` inside an `allow(...)`?
+def length_allow_groups(masked):
+    """The text of each `allow(...)` in an attribute that names the lint.
 
     The lint named anywhere in the attribute is not enough:
     `cfg_attr(test, expect(clippy::too_many_lines), allow(dead_code))`
     names it, and what it does to it is `expect`, which the compiler
     checks. So each `allow(` group is found and read to its closing
-    parenthesis. The attribute is masked, so a parenthesis in a string
-    or a comment is not there to be counted.
+    parenthesis, and only the groups naming the lint are returned. The
+    attribute is masked, so a parenthesis in a string or a comment is
+    not there to be counted.
+
+    The group, rather than the attribute, is also what a reason has to
+    be found in: `reason = "..."` on a sibling `expect` explains the
+    expect, not the allow.
     """
+    groups = []
     for opening in re.finditer(r'\ballow\s*\(', masked):
         depth = 1
         pos = opening.end()
@@ -477,17 +505,17 @@ def allows_too_many_lines(masked):
             elif masked[pos] == ')':
                 depth -= 1
             pos += 1
-        if re.search(r'\bclippy::too_many_lines\b',
-                     masked[opening.end():pos]):
-            return True
-    return False
+        group = masked[opening.end():pos]
+        if re.search(r'\bclippy::too_many_lines\b', group):
+            groups.append(group)
+    return groups
 
 
 def unexplained_length_allows(text):
     """Line numbers of each `allow(clippy::too_many_lines)` with no reason.
 
     A reason is `reason = "..."` with something in the string, inside
-    the attribute, or a plain comment on the line immediately above the
+    the same `allow(...)` that names the lint, or a plain comment on the line immediately above the
     attribute's first line. A doc comment does not count: it describes
     the function to its callers, and nearly every function long enough
     to want an allow has one, so accepting it would accept them all.
@@ -502,9 +530,13 @@ def unexplained_length_allows(text):
     lines = text.split('\n')
     flagged = []
     for offset, masked in rust_attributes(text):
-        if not allows_too_many_lines(masked):
+        groups = length_allow_groups(masked)
+        if not groups:
             continue
-        if re.search(r'\breason\s*=\s*"\s*x[x\s]*"', masked):
+        # Every allow of the lint needs its own reason, or the comment
+        # above, which explains the attribute as a whole.
+        if all(re.search(r'\breason\s*=\s*"\s*x[x\s]*"', group)
+               for group in groups):
             continue
         line = text.count('\n', 0, offset)
         above = lines[line - 1].strip() if line > 0 else ''
