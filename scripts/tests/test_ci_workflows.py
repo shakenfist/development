@@ -1746,6 +1746,14 @@ class MergeGroupCancellationTest(CheckTestCase):
                       runs_on='[self-hosted, static, persistent]'))})
         self.assert_pass(result)
 
+    def test_persistent_without_static_is_the_same_pool(self):
+        # Only the static VMs advertise 'persistent', so the label
+        # alone still names the always-on pool.
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(self.QUEUE_REF_KEY,
+                      runs_on='[self-hosted, persistent]'))})
+        self.assert_pass(result)
+
     def test_a_self_hosted_pool_without_the_vm_label_is_in_scope(self):
         # instar's ephemeral runners are [self-hosted, debian-12, xl].
         # The sibling path-filter audit's 'vm' test would miss them

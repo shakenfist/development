@@ -502,7 +502,7 @@ class StaticRunnerTagsTest(CheckTestCase):
     # specification. Named rather than inlined so a reword fails with
     # an explanation.
     LABEL_SENTENCE_START = '* **Measured** by `static-runner-tags`: '
-    LABEL_SENTENCE_END = 'on the persistent VMs, so'
+    LABEL_SENTENCE_END = 'A `static` job must request'
 
     def test_an_empty_workflows_directory_does_not_apply(self):
         self.fixture.workflows({})
@@ -561,8 +561,10 @@ class StaticRunnerTagsTest(CheckTestCase):
             'jobs:\n  a:\n'
             '    runs-on: [self-hosted, static, persistent, s]\n')
         result = self.check(has_workflows_dir=True)
-        self.assert_fail(result, containing='(s)')
-        self.assertNotIn('persistent)', result['details'])
+        # The whole offender, not '(s)' alone: the message's own
+        # 'job(s)' and 'label(s)' would satisfy that, and so would an
+        # offender wrongly reading 'ci.yml:3 (persistent, s)'.
+        self.assert_fail(result, containing='ci.yml:3 (s)')
 
     def test_the_remediation_names_the_persistent_form(self):
         """A reader given only '[self-hosted, static]' would drop it.
@@ -595,8 +597,8 @@ class StaticRunnerTagsTest(CheckTestCase):
             -1, end,
             f'{self.LABEL_SENTENCE_END!r} no longer ends the advertised '
             f'label list in workflow-standards.md')
-        documented = set(re.findall(r'`([^`]+)`', content[start:end]))
-        documented.discard('static-runner-tags')
+        span = content[start + len(self.LABEL_SENTENCE_START):end]
+        documented = set(re.findall(r'`([^`]+)`', span))
         self.assertEqual(set(STATIC_ALLOWED_LABELS), documented)
 
 

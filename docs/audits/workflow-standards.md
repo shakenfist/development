@@ -69,11 +69,13 @@ machine-friendly.
   are much cheaper to start than a fresh VM. Reserve `vm` runners for
   jobs that genuinely need a throwaway machine.
 * **Measured** by `static-runner-tags`: a static runner advertises
-  `self-hosted`, `static`, and `persistent` on the persistent VMs, so
-  a `static` job must request those labels and nothing else. Adding a
-  size (`s`, `l`), `vm`, or an OS (`debian-12`) asks for a runner that
-  does not exist, and the job waits forever. The check flags any
-  `runs-on:` combining `static` with a label outside that set.
+  `self-hosted` and `static`, and the persistent VMs also advertise
+  `persistent`. A `static` job must request `self-hosted` and `static`,
+  and may add `persistent` when it needs a VM rather than a runner pod
+  (see below); nothing else. Adding a size (`s`, `l`), `vm`, or an OS
+  (`debian-12`) asks for a runner that does not exist, and the job
+  waits forever. The check flags any `runs-on:` combining `static`
+  with a label outside that set.
 
 #### `persistent`, and why it is not a pool
 

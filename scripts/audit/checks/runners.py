@@ -187,8 +187,8 @@ class StaticRunnerTags(Check):
     def run(self, repo):
         """Check that static-runner jobs request only the static labels.
 
-        A static runner advertises 'self-hosted', 'static', and
-        'persistent' on the persistent VMs. Adding a size (e.g. 's'),
+        A static runner advertises 'self-hosted' and 'static', and the
+        persistent VMs also advertise 'persistent'. Adding a size (e.g. 's'),
         'vm', or an operating system label (e.g. 'debian-12') alongside
         'static' asks for a runner that does not exist, so the job waits
         forever without being scheduled.

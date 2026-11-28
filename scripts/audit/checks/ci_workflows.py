@@ -767,7 +767,10 @@ def job_runs_on_scarce_runner(body):
     own, so a '[self-hosted, static, persistent]' job is exempt too. It
     names the always-on half of the same pool -- the persistent VMs, as
     against the runner pods -- and nothing an abandoned run could hold
-    there is ephemeral. Both label sets come from
+    there is ephemeral. The subtraction reads the label set and does
+    not require 'static', so '[self-hosted, persistent]' is exempt as
+    well, deliberately: only the static pool's VMs advertise the
+    label. Both label sets come from
     STATIC_ALLOWED_LABELS, which is also what StaticRunnerTags accepts,
     so the two cannot drift apart.
 

@@ -10,11 +10,11 @@
 # pull request description why the file should grow rather than split.
 # Comments here are not preserved when the tool rewrites this file.
 
-2613 scripts/audit/checks/ci_workflows.py
+2616 scripts/audit/checks/ci_workflows.py
 2391 scripts/audit/checks/packaging.py
 2401 scripts/audit/checks/plans.py
 1859 scripts/review-tracking.py
-3803 scripts/tests/test_ci_workflows.py
+3811 scripts/tests/test_ci_workflows.py
 2128 scripts/tests/test_docs_content.py
 1816 scripts/tests/test_github_config.py
 2922 scripts/tests/test_packaging.py
