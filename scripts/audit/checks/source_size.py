@@ -22,12 +22,13 @@ modules they are not in are the ones that have run out of room.
 """
 
 import ast
+import functools
 import os
 import re
 
 from audit.check import Check, ToolFailure
 from audit.files import (
-    PRE_COMMIT_RUN_ALL_RE, check_file_contains, file_matches, file_mentions,
+    PRE_COMMIT_RUN_ALL_RE, check_file_contains, file_matches,
     require_tracked_paths, toml_section_has_key,
 )
 from audit.repo import DEVELOPMENT_ROOT, READ_MAX_BYTES, read_within
@@ -41,7 +42,55 @@ RATCHET_COPY = 'tools/source-size-ratchet.py'
 
 PRE_COMMIT_CONFIG = '.pre-commit-config.yaml'
 
+#: A workflow step invoking the script, as opposed to naming it. The
+#: path is also what an `on.<event>.paths` filter, a paths-filter list
+#: and a `git diff --name-only` grep say, and none of those runs it.
+#: What runs it is an interpreter in front of it -- `python` or
+#: `python3`, with `-I` if the template's own spelling is kept -- or a
+#: `./` that executes the file directly.
+RATCHET_INVOCATION_RE = re.compile(
+    r'(?:\bpython3?\s+(?:-I\s+)?(?:\./)?|\./)'
+    + re.escape(RATCHET_COPY) + r'(?![\w.-])')
 
+#: A pre-commit hook's `entry:` key, with whatever follows it on the
+#: line. The value is a command and the only place a hook says what it
+#: runs: `files:`, `exclude:` and `args:` are regexes and arguments,
+#: which can name any path without running it.
+ENTRY_KEY_RE = re.compile(r'^(\s*)(?:-\s+)?entry:(.*)$')
+
+
+def entry_invokes(repo, path, needle):
+    """Does a pre-commit config have a hook whose `entry:` names needle?
+
+    Comments do not count, and nor does the needle anywhere but in an
+    `entry:` value. The value may continue onto the lines below it,
+    which is how a long command or a block scalar is written, so the
+    lines indented further than the key are read as its value too.
+    """
+    content = repo.read(path)
+    if content is None:
+        return False
+    key_indent = None
+    for line in content.split('\n'):
+        if line.lstrip().startswith('#'):
+            continue
+        if key_indent is not None:
+            indent = len(line) - len(line.lstrip())
+            if line.strip() and indent > key_indent:
+                if needle in line:
+                    return True
+                continue
+            key_indent = None
+        match = ENTRY_KEY_RE.match(line)
+        if not match:
+            continue
+        if needle in match.group(2):
+            return True
+        key_indent = len(match.group(1))
+    return False
+
+
+@functools.lru_cache(maxsize=None)
 def source_extensions():
     """SOURCE_EXTENSIONS as the shipped ratchet spells it.
 
@@ -61,6 +110,10 @@ def source_extensions():
     A template the audit cannot read, or whose assignment is not where
     this expects it, is the audit's own checkout being wrong rather
     than a finding about anybody, so it raises.
+
+    Cached, since applies() asks on every run and the template cannot
+    change under a running audit. A raise is not cached: the next call
+    reads the template again.
     """
     text = read_within(
         DEVELOPMENT_ROOT, os.path.join(DEVELOPMENT_ROOT, RATCHET_TEMPLATE))
@@ -139,7 +192,8 @@ class SourceSizeRatchet(Check):
 
         The hook is matched by its entry rather than its id, so that a
         repository which renamed the id still counts and a comment
-        naming the tool does not.
+        naming the tool does not -- nor a `files:` pattern, which can
+        name the script without running it.
 
         CI reach is the half a config read cannot answer. A hook in
         `.pre-commit-config.yaml` gates a commit by somebody who has
@@ -148,10 +202,16 @@ class SourceSizeRatchet(Check):
         workflow running every hook over the tree, as `pre-commit run
         --all-files` does, or a workflow invoking the script itself,
         which is how a repository that runs each hook as its own job
-        reaches it. An invocation naming a single other hook is
-        neither: it runs that hook and no others, so counting it would
-        pass a repository whose ratchet job had been deleted on the
-        strength of a job that lints something else.
+        reaches it. Invoking it is an interpreter or `./` in front of
+        the path: a `paths:` filter naming the script triggers a
+        workflow on it and runs nothing. An invocation naming a single
+        other hook is neither: it runs that hook and no others, so
+        counting it would pass a repository whose ratchet job had been
+        deleted on the strength of a job that lints something else.
+
+        The two halves are judged independently, so each finding says
+        only what is true of its half. A repository with the lane and
+        no hook is told about the hook alone.
 
         What this does not do is re-run the ratchet. Whether the
         baseline is honoured is the hook's job on every pull request,
@@ -184,29 +244,30 @@ class SourceSizeRatchet(Check):
         elif copy != canonical:
             problems.append(f'{RATCHET_COPY} differs from {RATCHET_TEMPLATE}')
 
-        in_pre_commit = file_mentions(repo, PRE_COMMIT_CONFIG, RATCHET_COPY)
-        if not in_pre_commit:
+        if not entry_invokes(repo, PRE_COMMIT_CONFIG, RATCHET_COPY):
             problems.append(
                 f'{PRE_COMMIT_CONFIG} does not invoke {RATCHET_COPY}')
 
         workflows = [
             f'.github/workflows/{workflow}' for workflow in repo.workflows()
         ]
-        # A workflow running every pre-commit hook runs the ratchet
-        # hook with them, so the tool reaches CI without the workflow
-        # naming it -- but only if the hook is declared, which is what
-        # it would run. PRE_COMMIT_RUN_ALL_RE rather than the looser
+        # The lane is judged on its own, whether or not the hook is
+        # declared: a workflow running every hook is a lane that
+        # exists, and the missing hook is its own finding. Reporting
+        # the lane as absent as well would say something false about
+        # the workflows of a repository that runs `pre-commit run
+        # --all-files`. PRE_COMMIT_RUN_ALL_RE rather than the looser
         # PRE_COMMIT_RUN_RE for the reason it carries: a job running
         # one named hook does not run this one.
-        via_pre_commit = in_pre_commit and any(
+        runs_every_hook = any(
             file_matches(repo, workflow, PRE_COMMIT_RUN_ALL_RE)
             for workflow in workflows
         )
         runs_directly = any(
-            file_mentions(repo, workflow, RATCHET_COPY)
+            file_matches(repo, workflow, RATCHET_INVOCATION_RE)
             for workflow in workflows
         )
-        if not via_pre_commit and not runs_directly:
+        if not runs_every_hook and not runs_directly:
             problems.append(
                 f'no workflow runs every pre-commit hook (as `pre-commit run '
                 f'--all-files` does) or invokes {RATCHET_COPY}, so nothing '
@@ -233,10 +294,14 @@ TOO_MANY_LINES_LINT = (
     r'too_many_lines\s*=\s*'
     r'(?:"(?:warn|deny)"|\{[^}#]*\blevel\s*=\s*"(?:warn|deny)")')
 
-#: A manifest that declares a workspace of its own, in any of the table
-#: forms: it is a workspace root, and cargo excludes a nested one from
-#: the workspace above it.
-OWN_WORKSPACE_RE = re.compile(r'(?m)^\s*\[workspace(?:\.[^\]\n]*)?\]')
+#: A manifest that declares a workspace of its own: it is a workspace
+#: root, and cargo excludes a nested one from the workspace above it.
+#: The `[workspace]` header itself, and not `[workspace.dependencies]`
+#: or `[workspace.lints]` alone: those tables only mean something in a
+#: manifest that has the header, so one in a member is a copy-paste
+#: from the root, and exempting the member on its strength would
+#: exempt it from the lint.
+OWN_WORKSPACE_RE = re.compile(r'(?m)^[ \t]*\[workspace\]')
 
 #: A character literal, as opposed to a lifetime, which also starts with
 #: a quote. Needed so that `'"'` is not read as opening a string.
@@ -393,6 +458,31 @@ def rust_attributes(text):
     return found
 
 
+def allows_too_many_lines(masked):
+    """Does a masked attribute have `too_many_lines` inside an `allow(...)`?
+
+    The lint named anywhere in the attribute is not enough:
+    `cfg_attr(test, expect(clippy::too_many_lines), allow(dead_code))`
+    names it, and what it does to it is `expect`, which the compiler
+    checks. So each `allow(` group is found and read to its closing
+    parenthesis. The attribute is masked, so a parenthesis in a string
+    or a comment is not there to be counted.
+    """
+    for opening in re.finditer(r'\ballow\s*\(', masked):
+        depth = 1
+        pos = opening.end()
+        while pos < len(masked) and depth:
+            if masked[pos] == '(':
+                depth += 1
+            elif masked[pos] == ')':
+                depth -= 1
+            pos += 1
+        if re.search(r'\bclippy::too_many_lines\b',
+                     masked[opening.end():pos]):
+            return True
+    return False
+
+
 def unexplained_length_allows(text):
     """Line numbers of each `allow(clippy::too_many_lines)` with no reason.
 
@@ -412,9 +502,7 @@ def unexplained_length_allows(text):
     lines = text.split('\n')
     flagged = []
     for offset, masked in rust_attributes(text):
-        if not re.search(r'\ballow\s*\(', masked):
-            continue
-        if not re.search(r'\bclippy::too_many_lines\b', masked):
+        if not allows_too_many_lines(masked):
             continue
         if re.search(r'\breason\s*=\s*"\s*x[x\s]*"', masked):
             continue
@@ -464,7 +552,10 @@ class RustFunctionLengthLint(Check):
         for `rust-unwrap-lint`. And a manifest declaring a workspace of
         its own, which cargo excludes from the workspace above it:
         `[workspace.lints]` in the root cannot reach it, so requiring it
-        to inherit would ask the impossible.
+        to inherit would ask the impossible. That is the `[workspace]`
+        header: a member with only `[workspace.dependencies]` has
+        copied a table from the root, declares no workspace, and is
+        asked like any other member.
 
         Finally every tracked Rust file is scanned for an
         `#[allow(clippy::too_many_lines)]` giving no reason.

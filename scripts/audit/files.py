@@ -7,10 +7,13 @@ is not a regular file, nothing over the size cap. tracked_paths() asks
 git rather than the filesystem, so it takes the path.
 
 The patterns a criterion matches those files with live here too, once
-more than one family matches the same thing: PRE_COMMIT_RUN_RE is
-asked of a workflow by two criteria in two families, and a constant
-imported from one criterion's check module into another's points the
-dependency the wrong way.
+more than one family asks about the same thing: two families ask
+whether a workflow invokes pre-commit, and they need to agree on how
+one is spelled. PRE_COMMIT_RUN_RE is llm-context-lint-ci's and
+PRE_COMMIT_RUN_ALL_RE, the narrower one, is source-size-ratchet's;
+file_matches() is the helper both use. A constant imported from one
+criterion's check module into another's points the dependency the
+wrong way.
 """
 
 import os
@@ -79,9 +82,12 @@ def file_mentions(repo, path, needle):
 #: consistency-audit.yml, which installs skillsaw from PyPI and so
 #: never names the upstream repository either.
 #:
-#: Shared because two criteria ask the same question of a workflow:
-#: llm-context-lint-ci about skillsaw, and source-size-ratchet about
-#: the ratchet script.
+#: This is llm-context-lint-ci's pattern, asked about skillsaw.
+#: source-size-ratchet asks a different question and uses
+#: PRE_COMMIT_RUN_ALL_RE below. The two live together because both
+#: are about how an invocation of pre-commit is spelled, and a
+#: spelling one of them learned (the quoted venv path, the module
+#: form) is one the other needs as well.
 #:
 #: The command is matched however it is spelled: bare, as a quoted
 #: path into a venv ("${RUNNER_TEMP}/venv/bin/pre-commit" run, which
@@ -95,9 +101,10 @@ PRE_COMMIT_RUN_RE = re.compile(r'pre[-_]commit[\'"]?\s+run\b')
 
 #: The same invocation, narrowed to one that runs the *whole* config.
 #:
-#: The contrast with PRE_COMMIT_RUN_RE above is the subtle part, and it
-#: is a difference in the question being asked rather than in strictness
-#: for its own sake. A criterion asking whether a particular tool runs
+#: This is source-size-ratchet's pattern. The contrast with
+#: PRE_COMMIT_RUN_RE above is the subtle part, and it is a difference
+#: in the question being asked rather than in strictness for its own
+#: sake. A criterion asking whether a particular tool runs
 #: in CI at all is answered by `pre-commit run skillsaw --all-files`:
 #: that is the tool running. A criterion asking whether CI runs *its
 #: own* hook is not, because a repository that runs each hook as its own

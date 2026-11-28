@@ -10,17 +10,32 @@ wired so that it gates a merge:
 | What | Where |
 |------|-------|
 | The script | `tools/source-size-ratchet.py`, byte-identical to `source-size-ratchet.py` in the template |
-| The hook | A `.pre-commit-config.yaml` hook whose entry runs `tools/source-size-ratchet.py` |
+| The hook | A `.pre-commit-config.yaml` hook whose `entry:` runs `tools/source-size-ratchet.py` |
 | The CI lane | At least one workflow that runs every hook, as `pre-commit run --all-files` does, or that invokes `tools/source-size-ratchet.py` itself |
+
+The hook and the lane are required together, and each is judged on its
+own. A repository with a lane and no hook is told only that the hook is
+missing, and one with a hook and no lane only that CI does not reach
+it; the finding about the lane appears only when no workflow runs every
+hook and none invokes the script.
 
 The copy is compared as bytes, not as text, so a copy that differs
 only in its line endings fails. A copy that is missing fails, and so
 does one the audit will not read: a link, dangling or out of the
 checkout, a directory, or a file over the read cap.
 
-The hook is matched by its entry rather than by its id, so a
-repository that renamed the hook still passes and a comment naming the
-tool does not. A repository whose index holds no file with a source
+The hook is matched by its `entry:` value rather than by its id, so a
+repository that renamed the hook still passes, and a comment naming the
+tool does not. Neither does the path in a `files:` or `exclude:`
+pattern: that names the script without running it.
+
+Likewise "invokes" means an invocation. In a workflow it is `python` or
+`python3`, with or without `-I`, or `./`, in front of the path. The
+path in an `on.<event>.paths` filter, a paths-filter list or a `git
+diff --name-only` grep triggers or selects something and runs nothing,
+so it is not a lane.
+
+A repository whose index holds no file with a source
 extension the script counts is reported as not applicable.
 
 Which source extensions those are is read out of the template itself,

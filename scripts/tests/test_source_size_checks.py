@@ -13,9 +13,11 @@ Run with: python3 -m unittest tests.test_source_size_checks
 import os
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from audit.check import ToolFailure  # noqa: E402
 from audit.checks import source_size  # noqa: E402
 from tests.base import CheckTestCase, repo_file  # noqa: E402
 
@@ -165,6 +167,131 @@ jobs:
       - run: pre-commit install
 """
 
+#: ryll's real job: the script invoked from a job of its own, behind a
+#: fork guard.
+RYLL_WORKFLOW = """\
+name: ci
+on: [pull_request]
+jobs:
+  source-size-ratchet:
+    name: source size ratchet
+    runs-on: [self-hosted, vm, debian-13, s]
+    if: >-
+      github.event_name != 'merge_group'
+      && (github.event_name != 'pull_request'
+          || github.event.pull_request.head.repo.full_name == github.repository)
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check source files against the baseline
+        run: python3 -I tools/source-size-ratchet.py
+"""
+
+#: instar's real shape: a step in a larger job, with a paths-filter
+#: step after it that has nothing to do with this script.
+INSTAR_WORKFLOW = """\
+name: Functional Tests
+on:
+  pull_request:
+jobs:
+  ci-tooling:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the source size ratchet
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        run: python3 -I tools/source-size-ratchet.py
+
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'src/**'
+"""
+
+#: The script named where a workflow filters on it, and invoked
+#: nowhere. Each is a shape that mentions the path and runs nothing.
+MENTION_ONLY_WORKFLOWS = {
+    'a trigger paths filter': """\
+name: ci
+on:
+  pull_request:
+    paths:
+      - 'tools/source-size-ratchet.py'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: make build
+""",
+    'a paths-filter action list': """\
+name: ci
+on: [pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            tooling:
+              - tools/source-size-ratchet.py
+      - run: make build
+""",
+    'a diff grep': """\
+name: ci
+on: [pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: git diff --name-only origin/main | grep tools/source-size-ratchet.py
+""",
+}
+
+#: The script's path in a hook's `files:` pattern and nowhere else: a
+#: hook that runs on the script, and a hook that does not run it.
+CONFIG_FILES_ONLY = """\
+repos:
+  - repo: local
+    hooks:
+      - id: flake8wrap
+        name: flake8
+        entry: tools/flake8wrap.sh
+        language: system
+        files: ^(tools/source-size-ratchet.py|tools/other.py)$
+        exclude: tools/source-size-ratchet.py
+"""
+
+#: A long entry written as a block scalar, which is how one that does
+#: not fit on a line is spelled. The `files:` after it is not part of it.
+CONFIG_BLOCK_ENTRY = """\
+repos:
+  - repo: local
+    hooks:
+      - id: source-size-ratchet
+        name: source size ratchet
+        entry: >-
+          python3 -I
+          tools/source-size-ratchet.py
+        language: system
+        always_run: true
+"""
+
+CONFIG_BLOCK_ENTRY_THEN_FILES = """\
+repos:
+  - repo: local
+    hooks:
+      - id: other
+        name: other
+        entry: >-
+          python3 -I
+          tools/other.py
+        language: system
+        files: tools/source-size-ratchet.py
+"""
+
 
 class SourceExtensionsTest(unittest.TestCase):
     """The list the criterion reads out of the template's text."""
@@ -190,18 +317,76 @@ class SourceExtensionsTest(unittest.TestCase):
             self.assertIn(f"'{extension}'", text)
 
 
+class SourceExtensionsFailureTest(unittest.TestCase):
+    """The branches that make a broken audit checkout an `error`.
+
+    A template the audit cannot read or understand is the audit's own
+    checkout being wrong, and has to be reported as a failure to
+    measure rather than as a verdict about somebody's repository.
+    """
+
+    def setUp(self):
+        # The result is cached, so every case starts from a cache that
+        # is empty and leaves one behind, rather than a verdict one case
+        # got from a doctored template or one a doctored template hides.
+        source_size.source_extensions.cache_clear()
+        self.addCleanup(source_size.source_extensions.cache_clear)
+
+    def read_as(self, text):
+        return mock.patch.object(source_size, 'read_within',
+                                 return_value=text)
+
+    def test_an_unreadable_template_raises(self):
+        with self.read_as(None):
+            with self.assertRaisesRegex(ToolFailure, 'Could not read'):
+                source_size.source_extensions()
+
+    def test_an_unparseable_template_raises(self):
+        with self.read_as('SOURCE_EXTENSIONS = ('):
+            with self.assertRaisesRegex(ToolFailure, 'Could not parse'):
+                source_size.source_extensions()
+
+    def test_a_template_without_the_assignment_raises(self):
+        with self.read_as("OTHER = ('.py',)\n"):
+            with self.assertRaisesRegex(ToolFailure, 'declares no SOURCE'):
+                source_size.source_extensions()
+
+    def test_an_assignment_that_is_not_a_literal_raises(self):
+        for value in ('tuple(compute())', '5'):
+            with self.subTest(value=value):
+                source_size.source_extensions.cache_clear()
+                with self.read_as(f'SOURCE_EXTENSIONS = {value}\n'):
+                    with self.assertRaisesRegex(ToolFailure, 'not a literal'):
+                        source_size.source_extensions()
+
+    def test_a_failure_is_not_remembered(self):
+        with self.read_as(None):
+            with self.assertRaises(ToolFailure):
+                source_size.source_extensions()
+        with self.read_as("SOURCE_EXTENSIONS = ('.py',)\n"):
+            self.assertEqual(source_size.source_extensions(), ('.py',))
+
+    def test_the_template_is_parsed_once(self):
+        with self.read_as("SOURCE_EXTENSIONS = ('.py', '.rs')\n") as read:
+            first = source_size.source_extensions()
+            second = source_size.source_extensions()
+        self.assertEqual(first, ('.py', '.rs'))
+        self.assertEqual(second, first)
+        self.assertEqual(read.call_count, 1)
+
+
 class SourceSizeRatchetTest(CheckTestCase):
     check_class = source_size.SourceSizeRatchet
 
     def build(self, script=SCRIPT, config=CONFIG, workflows=None,
-              source=True, dangling=False, fresh=False):
+              source=True, dangling=False):
         """Write a fixture and make it a checkout the index can be read from.
 
         `script` is bytes so that a case can differ from the template
         by one of them; None leaves the copy out entirely, and
         `dangling` writes the name as a link to nothing instead.
         """
-        fixture = self.fresh_fixture() if fresh else self.fixture
+        fixture = self.fixture
         fixture.write('README.md', '# fixture\n')
         if source:
             fixture.write('src/app.py', 'print("hello")\n')
@@ -227,6 +412,11 @@ class SourceSizeRatchetTest(CheckTestCase):
         return self.check()
 
     def test_a_compliant_repository_passes(self):
+        """With this repository's own lane: a quoted venv path to pre-commit.
+
+        PRE_COMMIT_WORKFLOW is that shape, which is what a separate
+        test of the quoted form would have asserted.
+        """
         self.build(workflows={'ci.yml': PRE_COMMIT_WORKFLOW})
         self.assert_pass(self.check())
 
@@ -260,22 +450,48 @@ class SourceSizeRatchetTest(CheckTestCase):
             'will read')
         self.assertNotIn('is missing', result['details'])
 
-    def test_a_config_without_the_hook_fails(self):
-        """And the lane goes with it: `pre-commit run` runs declared hooks.
+    def findings(self, result):
+        """The semicolon-separated findings, without the fix advice."""
+        return result['details'].split('. Adopt the ratchet')[0].split('; ')
 
-        A repository with the lane and without the hook therefore
-        fails twice, which is the pair of findings its fix has to
-        address. The script is the template's, so a finding naming the
-        copy would be the wrong one.
+    def test_a_config_without_the_hook_but_with_a_lane_is_one_finding(self):
+        """A lane that runs every hook is a lane, hook declared or not.
+
+        `pre-commit run --all-files` is run by this repository's CI,
+        so saying that no workflow runs it would be false. Only the
+        hook is missing. The script is the template's, so a finding
+        naming the copy would be the wrong one as well.
         """
         result = self.assert_fail(
             self.check_with(config=CONFIG_WITHOUT_HOOK,
                             workflows={'ci.yml': PRE_COMMIT_WORKFLOW}),
             '.pre-commit-config.yaml does not invoke '
             'tools/source-size-ratchet.py')
+        self.assertEqual(
+            self.findings(result),
+            ['.pre-commit-config.yaml does not invoke '
+             'tools/source-size-ratchet.py'])
+        self.assertNotIn('no workflow runs', result['details'])
+        self.assertNotIn('differs from', result['details'])
+
+    def test_a_config_without_the_hook_but_with_a_direct_lane_is_one_finding(
+            self):
+        result = self.assert_fail(
+            self.check_with(config=CONFIG_WITHOUT_HOOK,
+                            workflows={'ci.yml': DIRECT_WORKFLOW}),
+            '.pre-commit-config.yaml does not invoke')
+        self.assertEqual(len(self.findings(result)), 1)
+        self.assertNotIn('no workflow runs', result['details'])
+
+    def test_no_hook_and_no_lane_are_two_findings(self):
+        result = self.assert_fail(
+            self.check_with(config=CONFIG_WITHOUT_HOOK,
+                            workflows={'ci.yml': SINGLE_HOOK_WORKFLOW}),
+            '.pre-commit-config.yaml does not invoke '
+            'tools/source-size-ratchet.py')
+        self.assertEqual(len(self.findings(result)), 2)
         self.assertIn('no workflow runs every pre-commit hook',
                       result['details'])
-        self.assertNotIn('differs from', result['details'])
 
     def test_the_hook_named_only_in_a_comment_fails(self):
         result = self.assert_fail(
@@ -302,10 +518,6 @@ class SourceSizeRatchetTest(CheckTestCase):
             'no workflow runs every pre-commit hook (as `pre-commit run '
             '--all-files` does) or invokes tools/source-size-ratchet.py')
         self.assertNotIn('does not invoke', result['details'])
-
-    def test_a_quoted_venv_pre_commit_run_is_a_lane(self):
-        self.build(workflows={'ci.yml': PRE_COMMIT_WORKFLOW})
-        self.assert_pass(self.check())
 
     def test_a_plain_all_files_lane_is_a_lane(self):
         self.build(workflows={'ci.yml': ALL_FILES_WORKFLOW})
@@ -348,9 +560,49 @@ class SourceSizeRatchetTest(CheckTestCase):
         self.build(workflows={'ci.yml': DIRECT_WORKFLOW})
         self.assert_pass(self.check())
 
+    def test_rylls_job_is_a_lane(self):
+        self.build(workflows={'ci.yml': RYLL_WORKFLOW})
+        self.assert_pass(self.check())
 
-if __name__ == '__main__':
-    unittest.main()
+    def test_instars_step_is_a_lane(self):
+        self.build(workflows={'ci.yml': INSTAR_WORKFLOW})
+        self.assert_pass(self.check())
+
+    def test_a_workflow_that_only_mentions_the_script_is_not_a_lane(self):
+        for shape, workflow in MENTION_ONLY_WORKFLOWS.items():
+            with self.subTest(shape):
+                self.fresh_fixture()
+                result = self.assert_fail(
+                    self.check_with(workflows={'ci.yml': workflow}),
+                    'no workflow runs every pre-commit hook')
+                self.assertNotIn('does not invoke tools/',
+                                 result['details'])
+
+    def test_a_dot_slash_invocation_is_a_lane(self):
+        self.build(workflows={
+            'ci.yml': DIRECT_WORKFLOW.replace(
+                'python3 -I tools/source-size-ratchet.py',
+                './tools/source-size-ratchet.py')})
+        self.assert_pass(self.check())
+
+    def test_a_script_named_in_a_files_pattern_is_not_the_hook(self):
+        result = self.assert_fail(
+            self.check_with(config=CONFIG_FILES_ONLY,
+                            workflows={'ci.yml': PRE_COMMIT_WORKFLOW}),
+            '.pre-commit-config.yaml does not invoke '
+            'tools/source-size-ratchet.py')
+        self.assertEqual(len(self.findings(result)), 1)
+
+    def test_an_entry_written_as_a_block_scalar_is_the_hook(self):
+        self.build(config=CONFIG_BLOCK_ENTRY,
+                   workflows={'ci.yml': PRE_COMMIT_WORKFLOW})
+        self.assert_pass(self.check())
+
+    def test_a_files_pattern_after_a_block_scalar_entry_is_not_the_hook(self):
+        self.assert_fail(
+            self.check_with(config=CONFIG_BLOCK_ENTRY_THEN_FILES,
+                            workflows={'ci.yml': PRE_COMMIT_WORKFLOW}),
+            '.pre-commit-config.yaml does not invoke')
 
 
 class RustFunctionLengthLintTest(CheckTestCase):
@@ -453,6 +705,24 @@ class RustFunctionLengthLintTest(CheckTestCase):
             'tools/gen/Cargo.toml':
                 '[package]\nname = "gen"\n\n[workspace]\n'}))
 
+    def test_a_member_with_only_workspace_tables_is_still_asked(self):
+        # A [workspace.dependencies] or [workspace.lints] copied from a
+        # root manifest declares no workspace.
+        for table in ('[workspace.dependencies]\nserde = "1"\n',
+                      '[workspace.lints.clippy]\nunwrap_used = "warn"\n'):
+            with self.subTest(table=table):
+                self.fresh_fixture()
+                self.assert_fail(self.build(extra={
+                    'crates/other/Cargo.toml':
+                        f'[package]\nname = "other"\n\n{table}'}),
+                    'crates/other/Cargo.toml neither inherits')
+
+    def test_a_nested_workspace_root_with_a_dependencies_table_passes(self):
+        self.assert_pass(self.build(extra={
+            'tools/gen/Cargo.toml':
+                '[package]\nname = "gen"\n\n[workspace]\n\n'
+                '[workspace.dependencies]\nserde = "1"\n'}))
+
     def test_a_crate_that_merely_mentions_workspace_is_still_asked(self):
         self.assert_fail(self.build(extra={
             'tools/gen/Cargo.toml':
@@ -488,6 +758,28 @@ class RustFunctionLengthLintTest(CheckTestCase):
             '/// Does the thing.\n#[allow(clippy::too_many_lines)]\n'
             'fn b() {}\n')
         self.assert_fail(result, 'lib.rs:2, crates/thing/src/lib.rs:6')
+
+    def test_a_single_line_block_comment_above_passes(self):
+        self.assert_pass(self.with_source(
+            '/* A flat dispatch table; splitting it hides the symmetry. */\n'
+            '#[allow(clippy::too_many_lines)]\n'
+            'fn b() {}\n'))
+
+    def test_a_multi_line_block_comment_above_does_not_count(self):
+        # Only the line immediately above is read, and for a block
+        # comment over several lines that is the last one, which does
+        # not open a comment. The limit is pinned rather than incidental.
+        self.assert_fail(self.with_source(
+            '/* A flat dispatch table;\n'
+            '   splitting it hides the symmetry. */\n'
+            '#[allow(clippy::too_many_lines)]\n'
+            'fn b() {}\n'), 'lib.rs:3')
+
+    def test_a_doc_block_comment_above_does_not_count(self):
+        self.assert_fail(self.with_source(
+            '/** Does the thing. */\n'
+            '#[allow(clippy::too_many_lines)]\n'
+            'fn b() {}\n'), 'lib.rs:2')
 
     def test_a_multi_line_allow_without_a_reason_fails(self):
         result = self.with_source(
@@ -534,6 +826,23 @@ class RustFunctionLengthLintTest(CheckTestCase):
         self.assert_fail(self.with_source(
             '#[cfg_attr(test, allow(clippy::too_many_lines))]\nfn b() {}\n'),
             'lib.rs:1')
+
+    def test_an_expect_beside_an_allow_of_another_lint_is_not_flagged(self):
+        # The lint is handled by `expect`; the `allow` is for dead_code.
+        self.assert_pass(self.with_source(
+            '#[cfg_attr(test, expect(clippy::too_many_lines), '
+            'allow(dead_code))]\n'
+            'fn b() {}\n'))
+        self.assert_pass(self.with_source(
+            '#[cfg_attr(test, allow(dead_code), '
+            'expect(clippy::too_many_lines))]\n'
+            'fn b() {}\n'))
+
+    def test_an_allow_of_the_lint_beside_an_expect_is_still_flagged(self):
+        self.assert_fail(self.with_source(
+            '#[cfg_attr(test, expect(dead_code), '
+            'allow(clippy::too_many_lines))]\n'
+            'fn b() {}\n'), 'lib.rs:1')
 
     def test_an_expect_is_not_flagged(self):
         self.assert_pass(self.with_source(
@@ -589,3 +898,7 @@ class RustFunctionLengthLintTest(CheckTestCase):
                 ')]\n'
                 'fn run() {}\n'})
         self.assert_pass(result)
+
+
+if __name__ == '__main__':
+    unittest.main()

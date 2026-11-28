@@ -3671,10 +3671,6 @@ class PreCommitNodeVersionTest(CheckTestCase):
         self.assertEqual(result['findings'], ['unpinned (default)'])
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-
 class JobsInheritingSecretsTest(unittest.TestCase):
     """Only a job-level uses: is a reusable workflow call."""
 
@@ -3791,3 +3787,7 @@ class ReusableWorkflowSecretsTest(CheckTestCase):
         # until #153, which is how three repositories came to.
         self.assert_pass(self.run_check({
             'pr-fix-tests.yml': repo_text('templates', 'test-drift-fix', 'pr-fix-tests.yml')}))
+
+
+if __name__ == '__main__':
+    unittest.main()

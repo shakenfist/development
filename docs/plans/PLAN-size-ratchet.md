@@ -1630,6 +1630,30 @@ have passed it on that job, and the narrow one passes it on the
 ratchet job it actually has. `instar` now passes one new criterion
 and fails the other.
 
+Review round 1 on #468: 3 fix, 1 document, 7 consider, 2 none; the
+three fixes and six of the considers taken. The fix that mattered was
+in the criterion's output rather than its logic. The lane test was
+gated on the hook being declared, so a repository with no hook was
+also told "no workflow runs every pre-commit hook", which is false
+for any repository that does run one -- `shakenfist` runs
+`pre-commit run --all-files` in two workflows and was told otherwise.
+The two halves are judged independently now, and the table above was
+written from a step report that had truncated that third clause away.
+Also taken: both halves required a mention of the script rather than
+an invocation of it, so an `on.paths` filter naming the script
+counted as CI running it; the nested-workspace skip fired on any
+`[workspace.*]` header, which made the exemption self-service; and a
+`cfg_attr` carrying both an `expect` for length and an `allow` of
+something else was flagged as a bare allow.
+
+One of them was a repeat of a known defect rather than a new one. The
+new suite's `unittest.main()` sat between its two test classes, so
+running the file directly reported 17 tests and silently skipped 31 --
+which is #413, still open against `test_ci_workflows.py`. Both files
+are fixed and a test now asserts that no suite defines a class after
+its `main` block, so the third instance fails at the hook instead of
+being found by a reviewer.
+
 #### Back brief
 
 Two gates, both because the work after them is cheap to propose

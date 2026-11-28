@@ -38,8 +38,15 @@
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-source-size-ratchet
       cancel-in-progress: true
+    # Read-only: the job runs a script from the checkout and needs no more.
+    permissions:
+      contents: read
     steps:
+      # Nothing here pushes, and the script below would otherwise find the
+      # token in the checkout's git config.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       # -I (isolated mode) keeps tools/ off sys.path, so a module a pull
       # request plants there, such as tools/fnmatch.py, cannot shadow

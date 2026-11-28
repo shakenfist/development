@@ -48,15 +48,37 @@ Concretely, we require:
    declares a `[workspace]` of its own: cargo excludes a nested
    workspace root from the workspace above it, so the root's
    `[workspace.lints]` cannot reach it, and demanding that it inherit
-   would be demanding the impossible.
+   would be demanding the impossible. The `[workspace]` header is what
+   counts. A member carrying only `[workspace.dependencies]` or
+   `[workspace.lints]` has copied a table from the root, declares no
+   workspace, and is asked like any other member.
 
 4. No tracked `.rs` file carries a bare
    `#[allow(clippy::too_many_lines)]`. An allow is accepted when it
-   gives a reason, either `reason = "..."` inside the attribute or a
-   plain `//` comment on the line immediately above it. A doc comment
-   (`///`) does not count: it describes the function to its callers,
-   nearly every function long enough to want an exemption has one, and
-   accepting it would accept them all.
+   gives a reason: either `reason = "..."` with something in the
+   string, inside the attribute, or a comment on the line immediately
+   above the attribute's first line. Three forms of comment are
+   distinguished:
+
+   * A plain `//` comment with text after it is accepted. A bare `//`
+     is not.
+   * A `/* ... */` comment that opens and closes on that one line is
+     accepted. Unlike `//`, the text inside it is not checked.
+   * A multi-line block comment is not accepted. Only the line
+     immediately above the attribute is read, and in a multi-line
+     block comment that is the closing line, which does not open a
+     comment. Write the reason on one line, as `//` comments or
+     `reason = "..."`.
+
+   A doc comment (`///`, `//!`, `/** */` or `/*! */`) does not count
+   in any form: it describes the function to its callers, nearly every
+   function long enough to want an exemption has one, and accepting it
+   would accept them all.
+
+   Only an `allow` is looked for, and only one that names the lint
+   inside its own parentheses. `#[cfg_attr(test, allow(clippy::too_many_lines))]`
+   is found; `#[cfg_attr(test, expect(clippy::too_many_lines),
+   allow(dead_code))]` is not, because the lint is handled by `expect`.
 
    Attributes span lines -- rustfmt wraps a long one -- so they are
    found by matching their brackets, not by searching line by line. A
