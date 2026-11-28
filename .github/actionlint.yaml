@@ -10,7 +10,12 @@
 # checks before they are copied into ten repositories.
 #
 # `debian-13-docker` is one of those: the mermaid-lint template needs a
-# docker daemon, and static runners do not have one.
+# docker daemon, and a `static` job can land on a runner pod, which has
+# none.
+#
+# `persistent` is another: it narrows `static` to the pool's long-lived
+# VMs, as against its runner pods, and the release-automation template
+# asks for it (see docs/audits/workflow-standards.md).
 #
 # The bookworm labels are deliberately absent. Debian 12 went end of
 # life on 2026-06-10, and the eol-distro consistency audit fails any
@@ -21,6 +26,7 @@
 self-hosted-runner:
   labels:
     - static
+    - persistent
     - claude-code
     - vm
     - debian-13

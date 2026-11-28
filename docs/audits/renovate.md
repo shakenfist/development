@@ -131,10 +131,10 @@ in the tree to exactly one of the two.
 The job runs on an ephemeral VM, `[self-hosted, vm, debian-13, s]`,
 and names the `renovate-write` environment, rather than running on the
 static pool. `RENOVATE_TOKEN` pushes branches to every repository the
-runner manages, and the static runners share one user and one home
-directory between jobs, so code another job ran could leave a `.pth`
-file or a `~/.gitconfig` hook there for this job to run with that
-token. A VM starts from the image and is thrown away after one job,
+runner manages, and the static pool's persistent VMs share one user
+and one home directory between jobs, so code another job ran could
+leave a `.pth` file or a `~/.gitconfig` hook there for this job to
+run with that token. A VM starts from the image and is thrown away after one job,
 which is the same reasoning `consistency-audit.yml` applies to its
 token-holding jobs. The environment is where that token is meant to be
 held, with deployment restricted to `main`, so that a branch which has

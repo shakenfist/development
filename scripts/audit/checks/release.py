@@ -74,11 +74,12 @@ def release_asset_issues(repo):
     files.
 
     The bug presents as intermittent because the release jobs run on
-    the persistent `[self-hosted, static]` pool. When the release job
-    lands on the same runner as the build it finds the build's
-    leftover `dist/` in the reused workspace and the glob matches --
-    which also means the assets came from unverified files on disk
-    rather than from the download, whose SHA256 nothing then checked.
+    the `[self-hosted, static]` pool, whose VMs are persistent. When
+    the release job lands on the same VM as the build it finds the
+    build's leftover `dist/` in the reused workspace and the glob
+    matches -- which also means the assets came from unverified files
+    on disk rather than from the download, whose SHA256 nothing then
+    checked.
     library-utilities v0.8.7 built on shakenfist-static-2, released
     from shakenfist-static-1, and shipped an empty release; kerbside
     v0.5.0 did both on shakenfist-static-1 and shipped two files,
@@ -149,12 +150,12 @@ def dist_directory(value):
 def release_workspace_issues(repo):
     """Findings for publishing jobs which trust a shared workspace.
 
-    The static runner pool is persistent and the publishing jobs do
-    not check out, so the directory such a job starts in is whatever
-    the last job on that runner left there. download-artifact then
-    extracts *into* its target rather than replacing it, so a stale
-    file from a previous run survives and joins the set the job goes
-    on to publish. That is not hypothetical: leftover dist/ on these
+    A static job may land on one of the pool's persistent VMs, and the
+    publishing jobs do not check out, so the directory such a job
+    starts in is whatever the last job on that runner left there.
+    download-artifact then extracts *into* its target rather than
+    replacing it, so a stale file from a previous run survives and
+    joins the set the job goes on to publish. That is not hypothetical: leftover dist/ on these
     runners is what made the earlier empty-release bug intermittent.
 
     Downloading into runner.temp settles it, because runner.temp is
@@ -280,8 +281,8 @@ def release_container_path_issues(repo):
             issues.append(
                 f'the {name} job runs {sorted(containers)[0]} in a '
                 'container, so its paths must be workspace-relative, but it '
-                'does not check out -- and this pool is persistent, so the '
-                'workspace is whatever the last job left. Add '
+                'does not check out -- and this pool may be persistent, so '
+                'the workspace is whatever the last job left. Add '
                 '"actions/checkout", which cleans with git clean -ffdx')
 
     return issues

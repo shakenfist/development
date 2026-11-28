@@ -760,8 +760,8 @@ def job_runs_on_scarce_runner(body):
     wrong for this one: instar's ephemeral runners are tagged
     [self-hosted, debian-12, xl] with no 'vm' label at all, and an
     abandoned merge group holds one of those just as firmly. The
-    static pool is the exception because it is always-on and shared,
-    and its jobs (path filters, gates) are seconds long.
+    static pool -- STATIC_ALLOWED_LABELS, 'persistent' included -- is
+    the exception: always-on, shared, and its jobs are seconds long.
 
     A `runs-on:` that is an expression is resolved as far as the
     matrix it reads: `runs-on: ${{ matrix.os }}` over a matrix whose

@@ -50,7 +50,25 @@ in-repo, or another `shakenfist/` repository. Anything else is a
 concurrency group nobody has checked and the caller cannot fix.
 
 **Scarce** means any self-hosted pool except `static`. `static` is
-exempt because it is always-on, shared, and its jobs are seconds long;
+exempt because it is always-on, shared, and its jobs are seconds long.
+`[self-hosted, static, persistent]` is exempt with it: `persistent`
+names the always-on half of that same pool rather than a pool of its
+own, so an abandoned run holds nothing ephemeral there (see
+`workflow-standards.md`). The exemption reads the label set rather
+than requiring `static`, so `[self-hosted, persistent]` is exempt too:
+only the static pool's VMs advertise the label. A label beside it that
+names an ephemeral pool -- `[self-hosted, vm, persistent]` -- keeps
+the job in scope.
+
+That exemption rests on the first leg of the `static` one alone. The
+jobs that need `persistent` are not seconds long -- a PyPI publish
+checks out, downloads, attests and uploads -- and they narrow the
+target to the pool's few VMs, so an abandoned run there holds a
+scarcer machine for longer than the `static` exemption was written
+for. No such job is reachable from `merge_group` today: the publish
+jobs run on a tag push. A long-running `persistent` job that is
+reachable from `merge_group` is the case to revisit this for.
+
 GitHub-hosted runners are exempt because there is no fleet runner to
 starve. A `runs-on:` expression is resolved against the matrix it
 reads, so `runs-on: ${{ matrix.runner }}` over self-hosted label lists

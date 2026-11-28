@@ -18,6 +18,7 @@ from tests.base import CheckTestCase, repo_text  # noqa: E402
 
 
 VM_SIZE_LABELS = runners.VM_SIZE_LABELS
+STATIC_ALLOWED_LABELS = workflows.STATIC_ALLOWED_LABELS
 parse_runner_labels = workflows.parse_runner_labels
 literal_runner_labels = workflows.literal_runner_labels
 
@@ -493,9 +494,15 @@ class SelfHostedRunnerLabelPositionTest(CheckTestCase):
 
 
 class StaticRunnerTagsTest(CheckTestCase):
-    """A 'static' runner request must not also ask for anything else."""
+    """A 'static' runner request may only ask for what is advertised."""
 
     check_class = runners.StaticRunnerTags
+
+    # The phrases delimiting the advertised label list in the
+    # specification. Named rather than inlined so a reword fails with
+    # an explanation.
+    LABEL_SENTENCE_START = '* **Measured** by `static-runner-tags`: '
+    LABEL_SENTENCE_END = 'A `static` job must request'
 
     def test_an_empty_workflows_directory_does_not_apply(self):
         self.fixture.workflows({})
@@ -530,6 +537,69 @@ class StaticRunnerTagsTest(CheckTestCase):
             'ci.yml',
             'jobs:\n  a:\n    runs-on: ${{ matrix.runner }}\n')
         self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_the_persistent_label_passes(self):
+        """The persistent VMs do advertise it, and the pods do not.
+
+        This is how a job that cannot run on a runner pod -- a PyPI
+        publish, which runs a Docker action on an image with no Docker
+        -- reaches a machine. A finding here would send the fleet back
+        to '[self-hosted, static]' and those jobs onto pods that
+        cannot run them, which is the one failure this criterion is
+        placed to prevent rather than cause.
+        """
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  a:\n'
+            '    runs-on: [self-hosted, static, persistent]\n')
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_persistent_does_not_excuse_an_impossible_label(self):
+        """Widening the set by one label widens it by one label."""
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  a:\n'
+            '    runs-on: [self-hosted, static, persistent, s]\n')
+        result = self.check(has_workflows_dir=True)
+        # The whole offender, not '(s)' alone: the message's own
+        # 'job(s)' and 'label(s)' would satisfy that, and so would an
+        # offender wrongly reading 'ci.yml:3 (persistent, s)'.
+        self.assert_fail(result, containing='ci.yml:3 (s)')
+
+    def test_the_remediation_names_the_persistent_form(self):
+        """A reader given only '[self-hosted, static]' would drop it.
+
+        The finding is read by whoever fixes the workflow, and the
+        label they need is the one the message used to tell them to
+        delete.
+        """
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  a:\n    runs-on: [self-hosted, static, l]\n')
+        result = self.check(has_workflows_dir=True)
+        self.assert_fail(result,
+                         containing='[self-hosted, static, persistent]')
+
+    def test_the_label_vocabulary_matches_the_specification(self):
+        # STATIC_ALLOWED_LABELS is a copy of
+        # static_runner_flavor_labels in mach33labs/33fl, which this
+        # repository cannot reach, so the least it can do is keep its
+        # own two copies in step. Granting a label here that the pool
+        # does not advertise costs a queued job nobody is watching.
+        content = repo_text('docs', 'audits', 'workflow-standards.md')
+        start = content.find(self.LABEL_SENTENCE_START)
+        self.assertNotEqual(
+            -1, start,
+            f'{self.LABEL_SENTENCE_START!r} no longer introduces the '
+            f'advertised label list in workflow-standards.md')
+        end = content.find(self.LABEL_SENTENCE_END, start)
+        self.assertNotEqual(
+            -1, end,
+            f'{self.LABEL_SENTENCE_END!r} no longer ends the advertised '
+            f'label list in workflow-standards.md')
+        span = content[start + len(self.LABEL_SENTENCE_START):end]
+        documented = set(re.findall(r'`([^`]+)`', span))
+        self.assertEqual(set(STATIC_ALLOWED_LABELS), documented)
 
 
 if __name__ == '__main__':

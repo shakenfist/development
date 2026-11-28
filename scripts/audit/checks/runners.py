@@ -187,11 +187,13 @@ class StaticRunnerTags(Check):
     def run(self, repo):
         """Check that static-runner jobs request only the static labels.
 
-        A static runner advertises exactly the 'self-hosted' and 'static'
-        labels. Adding a size (e.g. 's'), 'vm', or an operating system
-        label (e.g. 'debian-12') alongside 'static' asks for a runner
-        that does not exist, so the job waits forever without being
-        scheduled. Such jobs must use '[self-hosted, static]' exactly.
+        A static runner advertises 'self-hosted' and 'static', and the
+        pool's persistent VMs also advertise 'persistent'. Adding a size
+        (e.g. 's'), 'vm', or an operating system label (e.g.
+        'debian-12') alongside 'static' asks for a runner that does not
+        exist, so the job waits forever without being scheduled.
+        STATIC_ALLOWED_LABELS is the set; docs/audits/workflow-standards.md
+        says why 'persistent' is in it.
 
         We scan every 'runs-on:' line, so both the job-level and
         matrix-expansion forms are covered; unresolvable '${{ ... }}'
@@ -228,11 +230,13 @@ class StaticRunnerTags(Check):
             return self.fail(
                 f'{len(offenders)} static runner job(s) requesting '
                 f'impossible extra label(s): {", ".join(offenders)}. '
-                f'A static runner only advertises the "self-hosted" '
-                f'and "static" labels, so requiring a size, "vm", or '
-                f'an operating system label alongside "static" means '
-                f'the job will never be scheduled. Use '
-                f'"[self-hosted, static]" exactly')
+                f'A static runner advertises the "self-hosted" and '
+                f'"static" labels, and "persistent" on the persistent '
+                f'VMs, so requiring a size, "vm", or an operating '
+                f'system label alongside "static" means the job will '
+                f'never be scheduled. Use "[self-hosted, static]", or '
+                f'"[self-hosted, static, persistent]" for a job which '
+                f'cannot run on a runner pod')
         return self.ok(
             f'No static runner jobs request impossible labels in '
             f'{len(workflows)} workflow(s)')
