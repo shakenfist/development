@@ -102,6 +102,7 @@ CHECKS = [
     github_config.MovingRefSourceProtection(),
     github_config.ScopeCoverage(),
     source_size.SourceSizeRatchet(),
+    source_size.RustFunctionLengthLint(),
 ]
 
 

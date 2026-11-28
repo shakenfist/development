@@ -351,3 +351,241 @@ class SourceSizeRatchetTest(CheckTestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class RustFunctionLengthLintTest(CheckTestCase):
+    check_class = source_size.RustFunctionLengthLint
+
+    ROOT = (
+        '[workspace]\n'
+        'members = ["crates/thing"]\n'
+        '\n'
+        '[workspace.lints.clippy]\n'
+        'too_many_lines = "warn"\n'
+    )
+    CLIPPY = '# Measured, see the spec.\ntoo-many-lines-threshold = 200\n'
+    MEMBER = '[package]\nname = "thing"\n\n[lints]\nworkspace = true\n'
+
+    def build(self, root=ROOT, clippy=CLIPPY, extra=None):
+        """A workspace with one inheriting member, plus `extra` files."""
+        files = {'crates/thing/Cargo.toml': self.MEMBER}
+        if root is not None:
+            files['Cargo.toml'] = root
+        if clippy is not None:
+            files['clippy.toml'] = clippy
+        files.update(extra or {})
+        self.fixture.init_git()
+        self.fixture.write_all(files)
+        self.fixture.commit()
+        return self.check(has_cargo_toml=True)
+
+    def with_source(self, source):
+        return self.build(extra={'crates/thing/src/lib.rs': source})
+
+    def test_without_cargo_toml_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No Cargo.toml')
+
+    def test_a_configured_workspace_passes(self):
+        self.assert_pass(self.build())
+
+    def test_the_lint_missing_fails(self):
+        self.assert_fail(
+            self.build(root=self.ROOT.replace(
+                'too_many_lines = "warn"', 'unwrap_used = "warn"')),
+            'too_many_lines lint not set to warn or deny in Cargo.toml')
+
+    def test_allow_with_a_comment_naming_deny_is_not_enabled(self):
+        root = self.ROOT.replace(
+            'too_many_lines = "warn"',
+            'too_many_lines = "allow"  # was "deny"')
+        self.assert_fail(self.build(root=root), 'not set to warn or deny')
+
+    def test_the_table_form_passes(self):
+        root = self.ROOT.replace(
+            'too_many_lines = "warn"',
+            'too_many_lines = { level = "warn", priority = -1 }')
+        self.assert_pass(self.build(root=root))
+
+    def test_a_single_crate_repository_passes(self):
+        root = ('[package]\nname = "one"\n\n[lints.clippy]\n'
+                'too_many_lines = "deny"\n')
+        self.fixture.init_git()
+        self.fixture.write_all(
+            {'Cargo.toml': root, 'clippy.toml': self.CLIPPY})
+        self.fixture.commit()
+        self.assert_pass(self.check(has_cargo_toml=True))
+
+    def test_a_missing_clippy_toml_fails(self):
+        self.assert_fail(
+            self.build(clippy=None), 'clippy.toml missing')
+
+    def test_a_clippy_toml_without_the_threshold_fails(self):
+        self.assert_fail(
+            self.build(clippy='allow-unwrap-in-tests = true\n'),
+            'too-many-lines-threshold')
+
+    def test_a_commented_out_threshold_does_not_count(self):
+        self.assert_fail(
+            self.build(clippy='# too-many-lines-threshold = 200\n'),
+            'too-many-lines-threshold')
+
+    def test_a_member_that_neither_inherits_nor_defines_fails(self):
+        result = self.build(extra={
+            'crates/other/Cargo.toml': '[package]\nname = "other"\n'})
+        self.assert_fail(
+            result, 'crates/other/Cargo.toml neither inherits workspace')
+
+    def test_a_member_defining_the_lint_itself_passes(self):
+        self.assert_pass(self.build(extra={
+            'crates/other/Cargo.toml':
+                '[package]\nname = "other"\n\n[lints.clippy]\n'
+                'too_many_lines = "warn"\n'}))
+
+    def test_a_fuzz_crate_that_does_neither_passes(self):
+        self.assert_pass(self.build(extra={
+            'crates/thing/fuzz/Cargo.toml':
+                '[package]\nname = "thing-fuzz"\n'}))
+
+    def test_a_nested_workspace_crate_that_does_neither_passes(self):
+        # Cargo excludes a nested workspace root from the parent, so
+        # the root's [workspace.lints] cannot reach it.
+        self.assert_pass(self.build(extra={
+            'tools/gen/Cargo.toml':
+                '[package]\nname = "gen"\n\n[workspace]\n'}))
+
+    def test_a_crate_that_merely_mentions_workspace_is_still_asked(self):
+        self.assert_fail(self.build(extra={
+            'tools/gen/Cargo.toml':
+                '[package]\nname = "gen"\n'
+                'description = "a [workspace] helper"\n'}),
+            'tools/gen/Cargo.toml neither inherits')
+
+    def test_a_bare_allow_fails(self):
+        result = self.with_source(
+            'fn a() {}\n\n#[allow(clippy::too_many_lines)]\nfn b() {}\n')
+        self.assert_fail(result, 'crates/thing/src/lib.rs:3')
+
+    def test_an_allow_with_a_reason_passes(self):
+        self.assert_pass(self.with_source(
+            '#[allow(clippy::too_many_lines, reason = "one big match")]\n'
+            'fn b() {}\n'))
+
+    def test_an_allow_with_a_comment_above_passes(self):
+        self.assert_pass(self.with_source(
+            '// A flat dispatch table; splitting it hides the symmetry.\n'
+            '#[allow(clippy::too_many_lines)]\n'
+            'fn b() {}\n'))
+
+    def test_a_comment_two_lines_above_does_not_count(self):
+        self.assert_fail(self.with_source(
+            '// Explains something.\n\n'
+            '#[allow(clippy::too_many_lines)]\n'
+            'fn b() {}\n'), 'lib.rs:3')
+
+    def test_an_empty_comment_or_a_doc_comment_above_does_not_count(self):
+        result = self.with_source(
+            '//\n#[allow(clippy::too_many_lines)]\nfn a() {}\n\n'
+            '/// Does the thing.\n#[allow(clippy::too_many_lines)]\n'
+            'fn b() {}\n')
+        self.assert_fail(result, 'lib.rs:2, crates/thing/src/lib.rs:6')
+
+    def test_a_multi_line_allow_without_a_reason_fails(self):
+        result = self.with_source(
+            'fn a() {}\n\n'
+            '#[allow(\n'
+            '    clippy::too_many_arguments,\n'
+            '    clippy::too_many_lines,\n'
+            ')]\n'
+            'fn b() {}\n')
+        self.assert_fail(result, 'lib.rs:3')
+
+    def test_a_multi_line_allow_with_a_reason_passes(self):
+        self.assert_pass(self.with_source(
+            '#[allow(\n'
+            '    clippy::too_many_lines,\n'
+            '    reason = "the wire format is one flat sequence; [x] and\n'
+            '              (y) inside the reason must not end the attribute"\n'
+            ')]\n'
+            'fn b() {}\n'))
+
+    def test_a_multi_line_allow_with_a_comment_above_passes(self):
+        self.assert_pass(self.with_source(
+            '// Mirrors the protocol table.\n'
+            '#[allow(\n'
+            '    clippy::too_many_lines,\n'
+            ')]\n'
+            'fn b() {}\n'))
+
+    def test_an_empty_reason_does_not_count(self):
+        self.assert_fail(self.with_source(
+            '#[allow(clippy::too_many_lines, reason = "")]\nfn b() {}\n'),
+            'lib.rs:1')
+
+    def test_a_lint_name_inside_a_reason_is_not_an_allow(self):
+        self.assert_pass(self.with_source(
+            '#[allow(dead_code, reason = "allow(clippy::too_many_lines) '
+            'is elsewhere")]\nfn b() {}\n'))
+
+    def test_a_crate_level_allow_is_found(self):
+        self.assert_fail(self.with_source(
+            '#![allow(clippy::too_many_lines)]\nfn b() {}\n'), 'lib.rs:1')
+
+    def test_an_allow_inside_cfg_attr_is_found(self):
+        self.assert_fail(self.with_source(
+            '#[cfg_attr(test, allow(clippy::too_many_lines))]\nfn b() {}\n'),
+            'lib.rs:1')
+
+    def test_an_expect_is_not_flagged(self):
+        self.assert_pass(self.with_source(
+            '#[expect(clippy::too_many_lines)]\nfn b() {}\n'))
+
+    def test_text_in_comments_and_strings_is_not_an_attribute(self):
+        self.assert_pass(self.with_source(
+            '// #[allow(clippy::too_many_lines)]\n'
+            '/* #[allow(clippy::too_many_lines)] */\n'
+            'const S: &str = "#[allow(clippy::too_many_lines)]";\n'
+            'const R: &str = r#"#[allow(clippy::too_many_lines)]"#;\n'
+            "const Q: char = '\"';\n"
+            'fn b<\'a>(x: &\'a str) -> &\'a str { x }\n'))
+
+    def test_a_bare_allow_after_a_quote_char_is_still_found(self):
+        self.assert_fail(self.with_source(
+            "const Q: char = '\"';\n"
+            '#[allow(clippy::too_many_lines)]\nfn b() {}\n'), 'lib.rs:2')
+
+    def test_a_bare_allow_in_any_tracked_rust_file_is_found(self):
+        result = self.build(extra={
+            'src/deep/mod.rs': '#[allow(clippy::too_many_lines)]\nfn b() {}\n'})
+        self.assert_fail(result, 'src/deep/mod.rs:1')
+
+    def test_rylls_own_shape_passes(self):
+        # ryll: a workspace root with the lint under [workspace.lints],
+        # a clippy.toml with a measured threshold, members inheriting,
+        # a fuzz crate declaring no lints, a nested-workspace tool
+        # defining a different lint, and multi-line expect attributes.
+        root = (
+            '[workspace]\nresolver = "2"\n'
+            'members = ["ryll", "shakenfist-spice-protocol"]\n'
+            'exclude = ["tools/gen-swatches-jpeg"]\n\n'
+            '[workspace.lints.clippy]\nunwrap_used = "warn"\n'
+            'too_many_lines = "warn"\n')
+        clippy = (
+            '# 2026-11: about 4,145 functions, 40 over 100 lines, 13 over\n'
+            '# 200. Set to 200.\n'
+            'too-many-lines-threshold = 200\n'
+            'allow-unwrap-in-tests = true\n')
+        result = self.build(root=root, clippy=clippy, extra={
+            'ryll/Cargo.toml': self.MEMBER,
+            'shakenfist-spice-protocol/Cargo.toml': self.MEMBER,
+            'shakenfist-spice-protocol/fuzz/Cargo.toml':
+                '[package]\nname = "fuzz"\n',
+            'tools/gen-swatches-jpeg/Cargo.toml':
+                '[package]\nname = "gen"\n\n[lints.clippy]\n'
+                'unwrap_used = "warn"\n\n[workspace]\n',
+            'ryll/src/main.rs':
+                '#[expect(\n'
+                '    clippy::too_many_lines,\n'
+                '    reason = "one arm per message type"\n'
+                ')]\n'
+                'fn run() {}\n'})
+        self.assert_pass(result)

@@ -23,10 +23,12 @@ modules they are not in are the ones that have run out of room.
 
 import ast
 import os
+import re
 
 from audit.check import Check, ToolFailure
 from audit.files import (
-    PRE_COMMIT_RUN_ALL_RE, file_matches, file_mentions, require_tracked_paths,
+    PRE_COMMIT_RUN_ALL_RE, check_file_contains, file_matches, file_mentions,
+    require_tracked_paths, toml_section_has_key,
 )
 from audit.repo import DEVELOPMENT_ROOT, READ_MAX_BYTES, read_within
 
@@ -220,3 +222,331 @@ class SourceSizeRatchet(Check):
         return self.ok(
             f'{RATCHET_COPY} matches {RATCHET_TEMPLATE}, runs from '
             f'{PRE_COMMIT_CONFIG}, and is reached by CI')
+
+
+#: Where a Cargo.toml turns on the lint. Accepts too_many_lines = "warn",
+#: "deny", or the table form { level = "warn", priority = -1 }. The level
+#: has to be the value itself, or the table's level key inside its braces:
+#: a pattern taking the first quoted warn or deny anywhere on the line
+#: reads `too_many_lines = "allow"  # was "deny"` as enabled.
+TOO_MANY_LINES_LINT = (
+    r'too_many_lines\s*=\s*'
+    r'(?:"(?:warn|deny)"|\{[^}#]*\blevel\s*=\s*"(?:warn|deny)")')
+
+#: A manifest that declares a workspace of its own, in any of the table
+#: forms: it is a workspace root, and cargo excludes a nested one from
+#: the workspace above it.
+OWN_WORKSPACE_RE = re.compile(r'(?m)^\s*\[workspace(?:\.[^\]\n]*)?\]')
+
+#: A character literal, as opposed to a lifetime, which also starts with
+#: a quote. Needed so that `'"'` is not read as opening a string.
+CHAR_LITERAL_RE = re.compile(r"'(?:\\[^']+|[^\\'])'")
+
+#: An opening raw string, `r"`, `r#"`, `br##"` and so on.
+RAW_STRING_RE = re.compile(r'b?r(#*)"')
+
+
+def is_raw_string_start(text, pos):
+    """Does a raw string literal open at pos, rather than an identifier?"""
+    if not RAW_STRING_RE.match(text, pos):
+        return False
+    return pos == 0 or not (text[pos - 1].isalnum() or text[pos - 1] == '_')
+
+
+def skip_raw_string(text, pos):
+    """The offset after the raw string opening at pos, and its body."""
+    opening = RAW_STRING_RE.match(text, pos)
+    closer = '"' + opening.group(1)
+    close = text.find(closer, opening.end())
+    if close == -1:
+        return len(text), text[opening.end():]
+    return close + len(closer), text[opening.end():close]
+
+
+def skip_block_comment(text, pos):
+    """The offset after the (nestable) block comment starting at pos."""
+    depth = 0
+    while pos < len(text):
+        if text.startswith('/*', pos):
+            depth += 1
+            pos += 2
+        elif text.startswith('*/', pos):
+            depth -= 1
+            pos += 2
+            if depth == 0:
+                return pos
+        else:
+            pos += 1
+    return pos
+
+
+def skip_string(text, pos):
+    """The offset after the string literal whose opening quote is at pos."""
+    pos += 1
+    while pos < len(text):
+        if text[pos] == '\\':
+            pos += 2
+        elif text[pos] == '"':
+            return pos + 1
+        else:
+            pos += 1
+    return len(text)
+
+
+def mask_string(body):
+    """A string's content with every visible character as `x`."""
+    return '"' + ''.join(c if c.isspace() else 'x' for c in body) + '"'
+
+
+def mask_attribute(text, pos):
+    """Masked text of the attribute whose `[` is at pos, and where it ends.
+
+    Comments inside it are blanked and the content of each string is
+    masked, so that a match on the result cannot be fooled by a reason
+    that happens to mention a lint, and can still tell an empty reason
+    from a stated one. An attribute that never closes -- the file ends
+    first -- ends at the end of the file rather than raising: a file
+    that does not parse is rustc's to complain about.
+    """
+    out = []
+    depth = 0
+    while pos < len(text):
+        char = text[pos]
+        if text.startswith('//', pos):
+            newline = text.find('\n', pos)
+            stop = len(text) if newline == -1 else newline
+            out.append(' ' * (stop - pos))
+            pos = stop
+            continue
+        if text.startswith('/*', pos):
+            stop = skip_block_comment(text, pos)
+            out.append(''.join(
+                c if c == '\n' else ' ' for c in text[pos:stop]))
+            pos = stop
+            continue
+        if char == '"':
+            stop = skip_string(text, pos)
+            out.append(mask_string(text[pos + 1:max(pos + 1, stop - 1)]))
+            pos = stop
+            continue
+        if is_raw_string_start(text, pos):
+            pos, body = skip_raw_string(text, pos)
+            out.append(mask_string(body))
+            continue
+        literal = CHAR_LITERAL_RE.match(text, pos) if char == "'" else None
+        if literal:
+            out.append("'x'")
+            pos = literal.end()
+            continue
+        out.append(char)
+        pos += 1
+        if char == '[':
+            depth += 1
+        elif char == ']':
+            depth -= 1
+            if depth == 0:
+                break
+    return ''.join(out), pos
+
+
+def rust_attributes(text):
+    """Every attribute in Rust source, as (offset, masked text).
+
+    The offset is where the `#` is.
+
+    Found by scanning rather than by matching lines, because attributes
+    span them: rustfmt wraps a long `#[expect(..., reason = "...")]`
+    onto several lines, and a line-oriented search finds none of the
+    thirteen in the repository the criterion was piloted on. The scan
+    understands comments, strings (raw ones included) and char
+    literals, which is what it takes for a bracket inside one not to end
+    an attribute. It does not understand macros, so an attribute inside
+    a `macro_rules!` body is found like any other.
+    """
+    found = []
+    pos = 0
+    end = len(text)
+    while pos < end:
+        char = text[pos]
+        if text.startswith('//', pos):
+            newline = text.find('\n', pos)
+            pos = end if newline == -1 else newline
+        elif text.startswith('/*', pos):
+            pos = skip_block_comment(text, pos)
+        elif char == '"':
+            pos = skip_string(text, pos)
+        elif char == "'":
+            literal = CHAR_LITERAL_RE.match(text, pos)
+            pos = literal.end() if literal else pos + 1
+        elif is_raw_string_start(text, pos):
+            pos, _ = skip_raw_string(text, pos)
+        elif char == '#':
+            start = pos
+            pos += 1
+            if text.startswith('!', pos):
+                pos += 1
+            if text.startswith('[', pos):
+                masked, pos = mask_attribute(text, pos)
+                found.append((start, masked))
+        else:
+            pos += 1
+    return found
+
+
+def unexplained_length_allows(text):
+    """Line numbers of each `allow(clippy::too_many_lines)` with no reason.
+
+    A reason is `reason = "..."` with something in the string, inside
+    the attribute, or a plain comment on the line immediately above the
+    attribute's first line. A doc comment does not count: it describes
+    the function to its callers, and nearly every function long enough
+    to want an allow has one, so accepting it would accept them all.
+
+    `expect` is not looked for. An `#[expect]` is itself checked by the
+    compiler -- it warns once the function drops under the threshold and
+    the attribute is stale -- which is why the spec asks for it in
+    preference to `allow`; an `allow` goes stale silently.
+    """
+    if 'too_many_lines' not in text:
+        return []
+    lines = text.split('\n')
+    flagged = []
+    for offset, masked in rust_attributes(text):
+        if not re.search(r'\ballow\s*\(', masked):
+            continue
+        if not re.search(r'\bclippy::too_many_lines\b', masked):
+            continue
+        if re.search(r'\breason\s*=\s*"\s*x[x\s]*"', masked):
+            continue
+        line = text.count('\n', 0, offset)
+        above = lines[line - 1].strip() if line > 0 else ''
+        # `///` and `//!` are doc comments, and a bare `//` says nothing.
+        plain = re.match(r'//(?![/!])\s*\S', above)
+        block = re.match(r'/\*(?![*!])', above) and above.endswith('*/')
+        if plain or block:
+            continue
+        flagged.append(line + 1)
+    return flagged
+
+
+class RustFunctionLengthLint(Check):
+    id = 'rust-function-length-lint'
+    spec = 'docs/audits/rust-function-length-lint.md'
+    template = None
+    issue_title = 'Rust function length lint'
+
+    def applies(self, repo):
+        """Skip a repository that is not a Rust project.
+
+        From the repository's properties, which read the filesystem
+        rather than the index, so an empty directory is a skip as it is
+        for `rust-unwrap-lint`.
+        """
+        if not repo.props['has_cargo_toml']:
+            return 'No Cargo.toml (not a Rust project)'
+        return None
+
+    def run(self, repo):
+        """Check Rust projects enable clippy's too_many_lines lint.
+
+        The sibling of `rust-unwrap-lint`, with the same structure: the
+        root Cargo.toml sets the lint to warn or deny, a clippy.toml
+        beside it sets a threshold, and every other first-party crate
+        manifest inherits the workspace lints or defines the lint
+        itself.
+
+        The threshold's value is not judged. Clippy's default of 100 is
+        the wrong number for some codebases, and which number is right
+        is a measurement of that codebase, which the spec describes how
+        to make; what is required is that somebody chose.
+
+        Two kinds of manifest are not asked. A fuzz harness crate, as
+        for `rust-unwrap-lint`. And a manifest declaring a workspace of
+        its own, which cargo excludes from the workspace above it:
+        `[workspace.lints]` in the root cannot reach it, so requiring it
+        to inherit would ask the impossible.
+
+        Finally every tracked Rust file is scanned for an
+        `#[allow(clippy::too_many_lines)]` giving no reason.
+
+        The helpers are imported from `audit.files`, where they live;
+        they are not in `packaging.py`, so that module is not a
+        dependency of this one.
+        """
+        if repo.isfile('Cargo.toml'):
+            root_manifest = 'Cargo.toml'
+        else:
+            root_manifest = 'src/Cargo.toml'
+        root_dir = os.path.dirname(root_manifest)
+
+        issues = []
+
+        root_content = repo.read(root_manifest)
+        if root_content is None:
+            return self.skip('No Cargo.toml (not a Rust project)')
+        if not (
+            toml_section_has_key(
+                root_content, 'workspace.lints.clippy', TOO_MANY_LINES_LINT)
+            or toml_section_has_key(
+                root_content, 'lints.clippy', TOO_MANY_LINES_LINT)
+        ):
+            issues.append(
+                f'clippy too_many_lines lint not set to warn or deny '
+                f'in {root_manifest}')
+
+        clippy_toml = os.path.join(root_dir, 'clippy.toml')
+        if not check_file_contains(
+            repo, clippy_toml,
+            r'(?m)^\s*too-many-lines-threshold\s*=\s*\d',
+        ):
+            issues.append(
+                f'{clippy_toml} missing too-many-lines-threshold')
+
+        for manifest in require_tracked_paths(repo.path, '*Cargo.toml'):
+            if manifest == root_manifest:
+                continue
+            if 'fuzz' in manifest.split('/'):
+                continue
+            # Through Repo.read, so a manifest the index lists but the
+            # checkout does not hold is skipped rather than raised on.
+            content = repo.read(manifest)
+            if content is None or '[package]' not in content:
+                continue
+            if OWN_WORKSPACE_RE.search(content):
+                continue
+            inherits = (
+                toml_section_has_key(
+                    content, 'lints', r'workspace\s*=\s*true')
+                or re.search(
+                    r'^\s*lints\.workspace\s*=\s*true', content,
+                    re.MULTILINE)
+            )
+            defines = toml_section_has_key(
+                content, 'lints.clippy', TOO_MANY_LINES_LINT)
+            if not (inherits or defines):
+                issues.append(
+                    f'{manifest} neither inherits workspace lints '
+                    f'([lints] workspace = true) nor defines '
+                    f'too_many_lines itself')
+
+        bare = []
+        for path in require_tracked_paths(repo.path, '*.rs'):
+            content = repo.read(path)
+            if content is None:
+                continue
+            bare.extend(
+                f'{path}:{line}'
+                for line in unexplained_length_allows(content))
+        if bare:
+            shown = ', '.join(bare[:10])
+            more = f' and {len(bare) - 10} more' if len(bare) > 10 else ''
+            issues.append(
+                f'#[allow(clippy::too_many_lines)] without a reason at '
+                f'{shown}{more}; give it `reason = "..."` or a comment on '
+                f'the line above, or use #[expect]')
+
+        if issues:
+            return self.fail('; '.join(issues))
+        return self.ok(
+            'clippy too_many_lines lint is enabled with a '
+            'too-many-lines-threshold')

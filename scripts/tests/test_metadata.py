@@ -335,6 +335,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/source-size-ratchet.md',
         'template': 'templates/source-size-ratchet/',
     },
+    'rust-function-length-lint': {
+        'spec': 'docs/audits/rust-function-length-lint.md',
+        'template': None,
+    },
 }
 
 FROZEN_ISSUE_TITLES = {
@@ -410,6 +414,7 @@ FROZEN_ISSUE_TITLES = {
     'eol-distro': 'End-of-life distributions',
     'eol-producers': 'End-of-life runner labels offered',
     'source-size-ratchet': 'Source size ratchet',
+    'rust-function-length-lint': 'Rust function length lint',
 }
 
 FROZEN_COLUMN_NAMES = {
