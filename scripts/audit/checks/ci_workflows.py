@@ -760,19 +760,8 @@ def job_runs_on_scarce_runner(body):
     wrong for this one: instar's ephemeral runners are tagged
     [self-hosted, debian-12, xl] with no 'vm' label at all, and an
     abandoned merge group holds one of those just as firmly. The
-    static pool is the exception because it is always-on and shared,
-    and its jobs (path filters, gates) are seconds long.
-
-    'persistent' rides with 'static' rather than marking a pool of its
-    own, so a '[self-hosted, static, persistent]' job is exempt too. It
-    names the always-on half of the same pool -- the persistent VMs, as
-    against the runner pods -- and nothing an abandoned run could hold
-    there is ephemeral. The subtraction reads the label set and does
-    not require 'static', so '[self-hosted, persistent]' is exempt as
-    well, deliberately: only the static pool's VMs advertise the
-    label. Both label sets come from
-    STATIC_ALLOWED_LABELS, which is also what StaticRunnerTags accepts,
-    so the two cannot drift apart.
+    static pool -- STATIC_ALLOWED_LABELS, 'persistent' included -- is
+    the exception: always-on, shared, and its jobs are seconds long.
 
     A `runs-on:` that is an expression is resolved as far as the
     matrix it reads: `runs-on: ${{ matrix.os }}` over a matrix whose

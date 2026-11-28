@@ -1754,6 +1754,16 @@ class MergeGroupCancellationTest(CheckTestCase):
                       runs_on='[self-hosted, persistent]'))})
         self.assert_pass(result)
 
+    def test_persistent_beside_an_ephemeral_pool_is_in_scope(self):
+        # 'persistent' exempts nothing on its own account: the set
+        # difference leaves 'vm' behind, so the job still holds an
+        # ephemeral VM. Short-circuiting on the label would exempt
+        # every cloud build that happened to carry it.
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(self.QUEUE_REF_KEY,
+                      runs_on='[self-hosted, vm, persistent]'))})
+        self.assert_fail(result, containing='per-attempt queue ref')
+
     def test_a_self_hosted_pool_without_the_vm_label_is_in_scope(self):
         # instar's ephemeral runners are [self-hosted, debian-12, xl].
         # The sibling path-filter audit's 'vm' test would miss them
@@ -1926,6 +1936,33 @@ class MergeGroupCancellationTest(CheckTestCase):
             + self.QUEUE_REF_KEY
             + '    steps:\n      - run: deploy.sh\n'
         )
+        result = self._check({'ci.yml': self._merge_group_workflow(job)})
+        self.assert_fail(result, containing='per-attempt queue ref')
+
+    def _persistent_matrix_job(self, lanes):
+        return (
+            '  publish:\n'
+            '    strategy:\n'
+            '      matrix:\n'
+            f'        runner: [{lanes}]\n'
+            '    runs-on: ${{ matrix.runner }}\n'
+            + self.QUEUE_REF_KEY
+            + '    steps:\n      - run: publish.sh\n'
+        )
+
+    def test_a_matrix_of_persistent_static_runners_is_out_of_scope(self):
+        # The matrix path subtracts the same set as the literal one.
+        # The persistent lane is last: the matrix reader cannot see
+        # the first lane of an inline nested list, so putting it first
+        # would pass without reading it.
+        job = self._persistent_matrix_job(
+            '[self-hosted, static], [self-hosted, static, persistent]')
+        result = self._check({'ci.yml': self._merge_group_workflow(job)})
+        self.assert_pass(result)
+
+    def test_a_persistent_matrix_lane_beside_a_vm_lane_is_in_scope(self):
+        job = self._persistent_matrix_job(
+            '[self-hosted, static, persistent], [self-hosted, vm, persistent]')
         result = self._check({'ci.yml': self._merge_group_workflow(job)})
         self.assert_fail(result, containing='per-attempt queue ref')
 

@@ -188,20 +188,12 @@ class StaticRunnerTags(Check):
         """Check that static-runner jobs request only the static labels.
 
         A static runner advertises 'self-hosted' and 'static', and the
-        persistent VMs also advertise 'persistent'. Adding a size (e.g. 's'),
-        'vm', or an operating system label (e.g. 'debian-12') alongside
-        'static' asks for a runner that does not exist, so the job waits
-        forever without being scheduled.
-
-        'persistent' is the one extra label the static pool does
-        advertise, and only on those VMs: the ARC runner pods which also
-        carry 'static' deliberately do not, so
-        '[self-hosted, static, persistent]' is how a job that cannot run
-        on a pod reaches a machine. That asymmetry is the whole mechanism,
-        so a check which rejected the label would push the fleet back to
-        '[self-hosted, static]' and those jobs onto pods that cannot run
-        them. STATIC_ALLOWED_LABELS is the set, and
-        docs/audits/workflow-standards.md states where its authority is.
+        pool's persistent VMs also advertise 'persistent'. Adding a size
+        (e.g. 's'), 'vm', or an operating system label (e.g.
+        'debian-12') alongside 'static' asks for a runner that does not
+        exist, so the job waits forever without being scheduled.
+        STATIC_ALLOWED_LABELS is the set; docs/audits/workflow-standards.md
+        says why 'persistent' is in it.
 
         We scan every 'runs-on:' line, so both the job-level and
         matrix-expansion forms are covered; unresolvable '${{ ... }}'

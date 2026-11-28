@@ -239,8 +239,10 @@ the writing jobs as skipped. Leave out required reviewers and wait
 timers: the scheduled run has nobody to approve it.
 
 The split between jobs is also a split between hosts. The audit legs
-run on the persistent `[self-hosted, static]` runners, as one user,
-and only `runner.temp` is emptied between jobs. Code an audit leg runs
+run on `[self-hosted, static]`, a mixed pool whose long-lived VMs (see
+`docs/audits/workflow-standards.md`) run every job as one user, and
+only `runner.temp` is emptied between jobs. A leg can land on one of
+those VMs, so the jobs must assume it does. Code an audit leg runs
 -- skillsaw's unpinned dependencies, or anything an audited repository
 can steer -- could leave something in that user's home directory (a
 `.pth` file in the user site-packages, a `~/.gitconfig` hook) for a

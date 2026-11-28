@@ -76,6 +76,12 @@ machine-friendly.
   (`debian-12`) asks for a runner that does not exist, and the job
   waits forever. The check flags any `runs-on:` combining `static`
   with a label outside that set.
+* **Reviewed, not measured:** whether a job genuinely needs
+  `persistent`. The check accepts the label on any `static` job and
+  cannot tell one that needs a Docker daemon from one that copied it.
+  If it spreads to ordinary gates and path filters, the fleet's cheap
+  work moves off the runner pods onto the few VMs -- the capacity
+  problem the pods were added to solve -- and no criterion reports it.
 
 #### `persistent`, and why it is not a pool
 
