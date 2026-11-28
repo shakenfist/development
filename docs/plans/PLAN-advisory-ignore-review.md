@@ -114,25 +114,53 @@ Marvin attack) since their scanners landed, and nothing asks
 whether a fix has shipped since.
 
 cargo-deny 0.22 already has the mechanisms. Read from the 0.22.1
-source (`src/advisories/cfg.rs`, `src/advisories/diags.rs`) and
-its changelog (EmbarkStudios/cargo-deny#904):
+source (`src/advisories/cfg.rs`, `src/advisories/diags.rs`,
+`src/advisories.rs`, `src/cargo-deny/check.rs`) and its changelog;
+the file and line for each claim are recorded so that a later
+reader can tell a renamed key from a mis-specified rule:
 
 - An ignore entry may be a table, `{ id = "...", reason = "...",
-  expiry = "..." }`. `expiry` is either an absolute date,
-  `YYYY-MM-DD` and valid through that day, or an ISO 8601 duration
-  starting `P`. Once the run date is past it, the ignore no longer
-  applies and the advisory fails the run at deny level, as
-  `advisory-ignore-expired`.
-- A duration is measured from the advisory's *publication* date,
-  and so is the global `ignore-expiry` default. For an advisory
-  published in 2023, any sensible duration has already run out, so
-  neither works as a review clock. The absolute date does.
-- `unused-ignored-advisory` sets the level of the
-  `advisory-not-detected` diagnostic. It defaults to `warn`; `deny`
-  fails the run on any ignore that suppresses nothing.
+  expiry = "..." }` (`IgnoreId`, `cfg.rs:187-224`). `expiry` is
+  either an absolute date, `YYYY-MM-DD`, or an ISO 8601 duration
+  starting `P` (`parse_expiry`, `cfg.rs:149`). Once the run date is
+  past it, the ignore no longer applies and the advisory fails the
+  run at deny level, as `advisory-ignore-expired`
+  (`diags.rs:194-216`).
+- The comparison is `date > expiry` (`diags.rs:200`), so an
+  absolute expiry is valid through that day, and the run date is
+  the current date in UTC, not the runner's local time
+  (`check.rs:591-593`).
+- A duration is measured from the advisory's *publication* date
+  (`md.date.checked_add(dur)`, `diags.rs:197`), and so is the
+  global `ignore-expiry` default. For an advisory published in
+  2023, any sensible duration has already run out, so neither works
+  as a review clock. The absolute date does.
+- `unused-ignored-advisory` (`cfg.rs:438`) sets the level of the
+  `advisory-not-detected` diagnostic, and of `yanked-not-detected`
+  for a yanked-crate ignore (`advisories.rs:222-240`). It defaults
+  to `warn`; `deny` fails the run on any ignore that suppresses
+  nothing.
+- The same `ignore` list also suppresses yanked crates. An entry
+  is an advisory when it is a string whose text before the first
+  `-` is all uppercase ASCII, or a table with an `id` key;
+  anything else is parsed as a package spec, a bare
+  `"crate@version"` or `{ crate = "...", reason = "..." }`, and
+  goes to a separate yanked list (`cfg.rs:349-415`). A package spec
+  cannot carry an `expiry`.
+- `unmaintained` and `unsound` are both scopes (`cfg.rs:259-262`),
+  defaulting to `workspace`.
+- Per-entry `expiry` arrived in 0.21.0 (EmbarkStudios/cargo-deny#904)
+  and `unused-ignored-advisory` in 0.19.0
+  (EmbarkStudios/cargo-deny#823). An older cargo-deny does not
+  silently ignore an `expiry` key: 0.20.2's `IgnoreId` calls
+  `finalize` on the table, which rejects unknown keys, so the
+  configuration fails to load and the job goes red.
 - `EmbarkStudios/cargo-deny-action@v2`, the action both
   repositories' CI uses, runs cargo-deny 0.22.1 at the time of
-  writing.
+  writing. Both call it with `command: check`, which runs every
+  check including advisories, from the `cargo-deny` job in
+  `ci.yml` (skipped in the merge queue and on pull requests that
+  change no code) and from the weekly `supply-chain.yml` cron.
 
 cargo-audit 0.23 has no expiry on its ignores.
 
@@ -155,23 +183,56 @@ each layer can see:
 - **The weekly consistency audit** makes sure that configuration
   is in place, and warns before an expiry breaks CI. That is a new
   criterion, `advisory-ignore-review`, which applies to any
-  repository that tracks a `deny.toml` at its root and fails when:
+  repository that tracks a `deny.toml` or a `.cargo/audit.toml` at
+  its root and fails when:
   1. `[advisories]` does not set `unused-ignored-advisory =
      "deny"`;
-  2. an `[advisories].ignore` entry is not a table with an `id`, a
-     non-empty `reason`, and an `expiry` written as an absolute
-     date rather than a duration;
+  2. an advisory entry in `[advisories].ignore` is not a table with
+     an `id`, a non-empty `reason`, and an `expiry` written as an
+     absolute date rather than a duration; or a yanked-crate entry
+     is not a table with a non-empty `reason`. The check tells the
+     two apart the way cargo-deny does (see *Situation*). A
+     yanked-crate entry is exempt from the `expiry` half of this
+     rule and from rules 3 and 4, because cargo-deny cannot attach
+     an expiry to one; `unused-ignored-advisory = "deny"` still
+     fails it once the yanked version leaves the lockfile, so it
+     has liveness without a clock;
   3. an `expiry` is more than 180 days after the run date;
   4. an `expiry` is 14 days or fewer after the run date, or
      already past -- review is due, and the issue names each ID
-     and its date;
+     and its date. Past means `expiry` is before the run date,
+     which is today's date in UTC: the same inclusive comparison
+     and the same clock as cargo-deny, so the audit never calls an
+     entry expired on a day CI still honours it;
   5. an ID in `.cargo/audit.toml`'s ignore list, where that file
-     exists, is not also in `deny.toml`'s. cargo-audit cannot
-     carry a date, so its ignores ride on the clock of the
-     matching cargo-deny entry. The reverse is not required:
-     `cargo audit` fails on fewer advisories than `cargo deny`
-     does, so its list is legitimately shorter (shakenfist/ryll#805
-     made it so).
+     exists, is not also in `deny.toml`'s -- including when there
+     is no `deny.toml` at all. cargo-audit cannot carry a date, so
+     its ignores ride on the clock of the matching cargo-deny
+     entry, and a repository with only `.cargo/audit.toml` has
+     ignores on no clock. The reverse is not required: `cargo
+     audit` fails on fewer advisories than `cargo deny` does, so
+     its list is legitimately shorter (shakenfist/ryll#805 made it
+     so).
+
+Rules 3 and 4 make the verdict a function of the run date: an
+ignore reviewed to 90 days out passes for 76 days and then fails,
+on a repository nobody touched. That is the mechanism, not a side
+effect -- the issue is the review prompt, and the weekly run
+rewrites its body, so the IDs and dates stay current. It is not
+new: the distribution end-of-life checks in
+`scripts/audit/checks/distros.py` already move with the calendar.
+
+The criterion assumes what it cannot see: that the repository's CI
+runs cargo-deny's advisories check, at 0.21.0 or later. Both
+repositories in scope do (see *Situation*), and running a version
+older than 0.21.0 fails closed rather than open, because such a
+binary rejects the `expiry` key. What would pass unnoticed is a
+repository that keeps a `deny.toml` but stops running the
+advisories check. Checking workflows for a scanner invocation is a
+different criterion, with different applicability, and it is
+already in *Future work* as "whether every Rust repository should
+run cargo-deny"; step 1d records the invocation in each repository
+in the meantime, and the specification states the assumption.
 
 The specification sets conventions the check does not try to
 enforce, because it cannot see an entry's history. A new or
@@ -185,7 +246,7 @@ ignores do not all come due in the same week.
 
 With this criterion, ryll and andris newly fail, because neither
 sets the lint level or any expiry. This repository is not
-applicable, because it has no `deny.toml`.
+applicable, because it has neither file.
 
 Not covered: the gitleaks files above; advisory ignores for other
 ecosystems, since none exist yet (see *Future work*); whether
@@ -195,8 +256,9 @@ repository's own plans.
 
 ## Open questions
 
-1. **An expiry breaks every pull request in that repository on
-   the day it passes.** This is the same failure mode as a newly
+1. **An expiry breaks every pull request in that repository that
+   changes code, and the weekly scanner run, from the day after
+   it.** This is the same failure mode as a newly
    published advisory, which is exactly what happened to ryll on
    2026-11-24 with RUSTSEC-2026-0596. By default the plan accepts
    that: the criterion's 14-day warning means at least two weekly
@@ -212,6 +274,22 @@ repository's own plans.
    and a rule; that is a separate decision, recorded in *Future
    work*.
 3. **The warning window.** Default 14 days: two weekly runs.
+4. **`unused-ignored-advisory = "deny"` makes a dependency bump
+   break its own pull request.** When a bump fixes an advisory,
+   the ignore for it suppresses nothing, and the bump's pull
+   request fails `cargo deny`. That pull request is usually
+   Renovate's, which cannot edit `deny.toml`, so a human adds a
+   commit removing the ignore before it can land. By default the
+   plan accepts that: the commit is the same reap ryll has done by
+   hand three times, made at the moment it is due instead of
+   months later, and it is a one-line edit the failure names. The
+   alternative is to leave the lint at `warn`, which is today's
+   behaviour, and the audit cannot make up for it: telling a live
+   ignore from a dead one needs the lockfile resolved against the
+   advisory database, which the audit does not have. Phase 2's
+   pull requests should say this in each repository's scanner
+   policy, so the first red Renovate pull request is not a
+   surprise.
 
 ## Execution
 
@@ -220,7 +298,7 @@ The phases are sections below.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. The criterion and its specification | Not started | |
-| 2. Adopt in ryll and andris | Not started | |
+| 2. Adopt in ryll and andris | Not started | see section |
 | 3. Push audit | Not started | |
 
 <!-- shared-block: plan-status-vocabulary v1 -->
@@ -447,15 +525,15 @@ measured against.
 
 | Step | Effort | Model | Isolation | Brief |
 |------|--------|-------|-----------|-------|
-| 1a | high | opus | none | Add `scripts/audit/checks/supply_chain.py`, a new family module (`packaging.py` and `ci_workflows.py` are both close to their size-ratchet baselines), holding one `Check` subclass with `id = 'advisory-ignore-review'`. `applies(repo)` is true when `deny.toml` is tracked at the repository root. `run(repo)` reads `deny.toml` and, where present, `.cargo/audit.toml` through `repo.read()` and parses them with `tomllib`, as `packaging.py` does; an unparseable file is a failure that says so, not a raise. It implements rules 1 to 5 from *Mission* and reports every finding, not just the first, naming each advisory ID and, for rules 3 and 4, its date. The run date comes from one injectable source so that tests can pin it. Register it in `CHECKS` in `scripts/audit/registry.py`. |
-| 1b | high | opus | none | `scripts/tests/test_supply_chain.py`, following the `CheckTestCase` convention in `docs/consistency-audits.md`. Cover: not applicable without `deny.toml`; a passing configuration; each of rules 1 to 5 failing alone; a string-form entry; a duration-form `expiry`; an expiry exactly 14 and exactly 15 days out, and exactly 180 and 181; an expired date; a `.cargo/audit.toml` ID missing from `deny.toml`, and the reverse passing; an unparseable `deny.toml`; and an `[advisories]` table with no `ignore` key, which passes as long as rule 1 holds. Add the `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` lines in `scripts/tests/test_metadata.py`. |
-| 1c | medium | opus | none | `docs/audits/advisory-ignore-review.md`, following the structure in `docs/audits/README.md`: what is checked, why the work splits between cargo-deny and the audit (the *Situation* table is the evidence), the conventions the check does not enforce (90 days by default, 180 at most, what a review pull request says, staggering), what it does not cover, and `compliance.md#advisory-ignore-review` under `## Projects`. Add its line to the criterion index in `docs/audits/README.md`. |
-| 1d | medium | opus | none | Management session, inline. Run `scripts/audit-check.py` against fresh clones of ryll, andris and this repository, and `audit-manage-issues.py --dry-run` over the result. Record each verdict in this plan. Expected: ryll and andris fail rules 1 and 2, and this repository is not applicable. Any other verdict is either a check bug or a premise this plan got wrong. Re-confirm the cargo-deny version that `EmbarkStudios/cargo-deny-action@v2` runs, and record it. Run `pre-commit run --all-files` before proposing the commit. |
+| 1a | high | opus | none | Add `scripts/audit/checks/supply_chain.py`, a new family module (`packaging.py` and `ci_workflows.py` are both close to their size-ratchet baselines), holding one `Check` subclass with `id = 'advisory-ignore-review'`. `applies(repo)` is true when `deny.toml` or `.cargo/audit.toml` is tracked at the repository root, tested with `require_tracked_paths(repo.path, name)` from `audit.files`, as `scripts/audit/checks/npm_dependencies.py:898` does; the containment test in `scripts/tests/test_containment.py` fails any other way of listing files. `run(repo)` reads whichever of the two exist through `repo.read()` and parses them with `tomllib`, as `packaging.py` does; an unparseable file is a failure that says so, not a raise. Classify each `ignore` entry as cargo-deny does (*Situation*: an uppercase-prefixed string or a table with `id` is an advisory, anything else a yanked-crate spec). It implements rules 1 to 5 from *Mission* and reports every finding, not just the first: one line per finding, naming each advisory ID or crate and, for rules 3 and 4, its date, in the `findings` result key, with a one-line summary as the `fail()` detail. `findings` is one of the three keys `build_issue_body` in `scripts/audit-manage-issues.py` renders (through `render_issue_items`), and `test_every_extra_result_key_is_one_the_issue_renders` in `scripts/tests/test_metadata.py` fails any other. The run date is a UTC `datetime.date` from one injectable source, defaulting to today in UTC, following `retired_releases(today=None)` in `scripts/audit/checks/distros.py:123`; an entry is past only when `expiry < run_date`. Register it in `CHECKS` in `scripts/audit/registry.py`. |
+| 1b | high | opus | none | `scripts/tests/test_supply_chain.py`, following the `CheckTestCase` convention in `docs/consistency-audits.md`. Cover: not applicable with neither file; a passing configuration; each of rules 1 to 5 failing alone; a string-form advisory entry; a duration-form `expiry`; an expiry exactly 14 and exactly 15 days out, and exactly 180 and 181; an expiry equal to the run date, which is due but not past, and one day before it, which is past; a yanked-crate `{ crate, reason }` entry with no `expiry`, which passes, and a bare `"crate@version"` string, which fails rule 2; a `.cargo/audit.toml` ID missing from `deny.toml`, and the reverse passing; a `.cargo/audit.toml` with ignores and no `deny.toml`, which fails rule 5; an unparseable `deny.toml`; an `[advisories]` table with no `ignore` key, which passes as long as rule 1 holds; and that every finding arrives in `findings`, not only the first. Add the `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` lines in `scripts/tests/test_metadata.py`. |
+| 1c | medium | opus | none | `docs/audits/advisory-ignore-review.md`, following the structure in `docs/audits/README.md`: what is checked, why the work splits between cargo-deny and the audit (the *Situation* table is the evidence), the conventions the check does not enforce (90 days by default, 180 at most, what a review pull request says, staggering), what it does not cover, what it assumes (that CI runs cargo-deny's advisories check at 0.21.0 or later, and why an older binary fails closed), why yanked-crate entries have liveness but no clock, that the verdict moves with the calendar by design, and `compliance.md#advisory-ignore-review` under `## Projects`. Add its line to the criterion index in `docs/audits/README.md`. |
+| 1d | medium | opus | none | Management session, inline. Run `scripts/audit-check.py` against fresh clones of ryll, andris and this repository, and `audit-manage-issues.py --dry-run` over the result. Record each verdict in this plan. Expected: ryll and andris fail rules 1 and 2, and this repository is not applicable. Any other verdict is either a check bug or a premise this plan got wrong. Re-confirm the cargo-deny version that `EmbarkStudios/cargo-deny-action@v2` runs, and that each repository's `ci.yml` and `supply-chain.yml` still invoke it with `command: check` (or `check advisories`); record both. If the version has moved past 0.22.1, re-read the source paths cited in *Situation* and record whether the key and diagnostic names, the `date > expiry` comparison and the UTC clock still hold. Run `pre-commit run --all-files` before proposing the commit. |
 
 #### Definition of done
 
-- The five criterion files are in step, as *Success criteria*
-  lists.
+- All six of the criterion's files are in step, as *Adding a
+  criterion* in `docs/consistency-audits.md` lists them.
 - The dry run names ryll and andris and no other repository.
 - The specification says what each layer enforces and why, and a
   reader who was not here can follow the 2026-11-25 measurement it
@@ -474,7 +552,7 @@ that suppress nothing; land that first.
 
 | Step | Effort | Model | Isolation | Brief |
 |------|--------|-------|-----------|-------|
-| 2a | medium | opus | worktree | In ryll: set `unused-ignored-advisory = "deny"` under `[advisories]` in `deny.toml`. Convert each ignore to `{ id, reason, expiry }`, carrying the comment's rationale into `reason`, with the expiries staggered across the next 90 days. Update the ignore policy in `docs/ci.md` and the *Situation* of `docs/plans/PLAN-supply-chain-followups.md` to describe the review clock. |
+| 2a | medium | opus | worktree | In ryll: set `unused-ignored-advisory = "deny"` under `[advisories]` in `deny.toml`. Convert each ignore to `{ id, reason, expiry }`, carrying the comment's rationale into `reason`, with the expiries staggered across the next 90 days. Update the ignore policy in `docs/ci.md` and the *Situation* of `docs/plans/PLAN-supply-chain-followups.md` to describe the review clock, and to say that a dependency bump which fixes an ignored advisory now fails `cargo deny` until the same pull request removes the ignore (open question 4). |
 | 2b | medium | opus | worktree | In andris: the same, after removing RUSTSEC-2025-0134 from both files, since it suppresses nothing there (cargo-deny reports it as `advisory-not-detected`, and `cargo audit` only warns). Read andris's own docs for the place that states its scanner policy, rather than assuming ryll's layout. |
 | 2c | medium | opus | none | Management session, inline, for each repository: run both scanners in a `rust:latest` container and confirm they pass. Then prove that each mechanism fails, on a scratch copy and not on the branch: an expiry set to yesterday must fail `cargo deny` with `advisory-ignore-expired`, and a bogus ignore ID must fail it with `advisory-not-detected`. Re-run phase 1's check against each branch and confirm it passes. |
 
@@ -615,7 +693,7 @@ add the file to `docs/audits/README.md`, add its lines to
 `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in
 `scripts/tests/test_metadata.py`, and add tests to
 `scripts/tests/test_plans.py` covering pass, fail and
-not-applicable." A brief that names four of the criterion's five
+not-applicable." A brief that names five of the criterion's six
 files is the characteristic defect here, and the frozen tables are
 the one most often left out.
 
@@ -718,9 +796,10 @@ because the following statements will be true:
 * `pre-commit run --all-files` passes.
 * `scripts/audit-check.py` run against this repository reports no
   new failures, or the plan states which verdicts moved and why.
-* Any new or changed criterion has all five of its files in step:
+* Any new or changed criterion has all six of its files in step:
   the `Check` subclass in `scripts/audit/checks/<family>.py`, its
-  registration in `CHECKS` in `scripts/audit/registry.py`, the
+  registration in `CHECKS` in `scripts/audit/registry.py`, its
+  tests in `scripts/tests/test_<family>.py`, the
   specification under `docs/audits/`, its row in
   `docs/audits/README.md`, and its frozen lines in
   `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in
