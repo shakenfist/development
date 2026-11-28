@@ -24,7 +24,7 @@ import traceback
 from audit.check import ERROR, NOT_APPLICABLE, ToolFailure
 from audit.checks import (
     ci_workflows, distros, docs_content, github_config, llm_docs, npm_dependencies, packaging, plans, release,
-    review, runners,
+    review, runners, source_size,
 )
 
 
@@ -101,6 +101,7 @@ CHECKS = [
     github_config.BypassActorIdentity(),
     github_config.MovingRefSourceProtection(),
     github_config.ScopeCoverage(),
+    source_size.SourceSizeRatchet(),
 ]
 
 

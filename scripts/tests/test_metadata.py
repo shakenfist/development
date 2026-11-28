@@ -331,6 +331,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/eol-producers.md',
         'template': None,
     },
+    'source-size-ratchet': {
+        'spec': 'docs/audits/source-size-ratchet.md',
+        'template': 'templates/source-size-ratchet/',
+    },
 }
 
 FROZEN_ISSUE_TITLES = {
@@ -405,6 +409,7 @@ FROZEN_ISSUE_TITLES = {
     'scope-coverage': 'Audit scope against the organisation',
     'eol-distro': 'End-of-life distributions',
     'eol-producers': 'End-of-life runner labels offered',
+    'source-size-ratchet': 'Source size ratchet',
 }
 
 FROZEN_COLUMN_NAMES = {
@@ -555,12 +560,16 @@ class ContractTest(unittest.TestCase):
     TOOL_FAILURE = 'tool failure'
 
     def results(self, repo):
+        # applies() inside the guard, as registry.run_check() has it:
+        # an applicability test can be the thing that asks git, and a
+        # criterion whose applies() raises here is reported `error` by
+        # the scheduler rather than aborting the run.
         for check in CHECKS:
-            reason = check.applies(repo)
-            if reason is not None:
-                yield check, check.skip(reason)
-                continue
             try:
+                reason = check.applies(repo)
+                if reason is not None:
+                    yield check, check.skip(reason)
+                    continue
                 yield check, check.run(repo)
             except ToolFailure as e:
                 yield check, {'id': check.id, 'status': self.TOOL_FAILURE,
@@ -676,7 +685,7 @@ class ContractTest(unittest.TestCase):
             'github-security', 'header-sanitization', 'llm-doc-naming',
             'merge-queue-config', 'mermaid-lint-ci',
             'plan-history-in-source', 'plan-source-references',
-            'pyproject-usage',
+            'pyproject-usage', 'source-size-ratchet',
         ], failed)
 
     def test_a_docs_only_repository_produces_a_valid_result(self):

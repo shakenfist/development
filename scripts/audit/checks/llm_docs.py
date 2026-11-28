@@ -13,7 +13,9 @@ import os
 import re
 
 from audit.check import Check, ToolFailure, run_tool
-from audit.files import file_mentions, require_tracked_paths
+from audit.files import (
+    PRE_COMMIT_RUN_RE, file_matches, file_mentions, require_tracked_paths,
+)
 from audit.github import environment_without_credentials
 from audit.repo import path_is_within
 from audit.text.markdown import iter_markdown_headings, normalise_heading
@@ -131,41 +133,6 @@ SKILLSAW_RUN_RE = re.compile(
     r'(?:^|[|&;(]|\brun:|\buvx|\buv\s+run|\s-m)\s*'
     r'(?:[\w./-]*/)?skillsaw(?!\S)(?!\s+(?:--version|--help|-V|-h)(?![\w=-]))'
 )
-
-
-# A CI job which runs pre-commit over the tree runs every hook the
-# pre-commit config declares, skillsaw included. Requiring the linter
-# to be named in a workflow as well would report those repositories as
-# non-compliant for a wiring that does run it -- and would fail the
-# reference invocation in this repository's own consistency-audit.yml,
-# which installs skillsaw from PyPI and so never names the upstream
-# repository either.
-#
-# The command is matched however it is spelled, as SKILLSAW_RUN_RE
-# does for skillsaw: bare, as a quoted path into a venv
-# ("${RUNNER_TEMP}/venv/bin/pre-commit" run, which is how this
-# repository's own ci.yml calls it, so the closing quote sits between
-# the command and its subcommand), or as the module
-# (python -m pre_commit run). Only the run subcommand counts:
-# installing pre-commit, or running "pre-commit install", runs no hook.
-PRE_COMMIT_RUN_RE = re.compile(r'pre[-_]commit[\'"]?\s+run\b')
-
-
-def file_matches(repo, path, pattern):
-    """Does a repository file match a regex, outside of its comments?
-
-    The comment handling matches file_mentions: a header comment
-    describing what something else does must not count as doing it.
-    """
-    content = repo.read(path)
-    if content is None:
-        return False
-    for line in content.split('\n'):
-        if line.lstrip().startswith('#'):
-            continue
-        if pattern.search(line):
-            return True
-    return False
 
 
 def has_agent_context(repo):

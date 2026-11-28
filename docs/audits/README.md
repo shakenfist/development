@@ -249,6 +249,7 @@ attached rather than quietly disappearing from the table.
 | [scope-coverage.md](scope-coverage.md) | Every repository in the organisation is audited or documented as excluded |
 | [eol-distro.md](eol-distro.md) | Nothing runs on, or is built from, a distribution release that has reached end of life |
 | [eol-producers.md](eol-producers.md) | No runner label is offered for a distribution release that has reached end of life |
+| [source-size-ratchet.md](source-size-ratchet.md) | The source size ratchet is adopted verbatim, hooked into pre-commit, and reached by CI |
 
 ## Beyond the audits
 
