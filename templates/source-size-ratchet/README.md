@@ -103,7 +103,15 @@ whole, so the baseline is exactly the list of files that owe one.
    baseline or the exclude file can change the verdict, and the job
    takes seconds. A consistency audit that reads
    `.pre-commit-config.yaml` sees the hook and not the job, so a
-   missing job is not something an audit will catch for you.
+   missing job is not something an audit will catch for you. One
+   consequence of the fork guard is worth deciding rather than
+   inheriting: ryll's enqueue and automated-reviewer gates count a
+   skipped job as success, so on a fork pull request the job does
+   not run and nothing reports a ratchet verdict, while the pull
+   request can still enqueue. That is the right trade for a job
+   that executes a script the fork controls, but an adopter who
+   wants fork branches measured has to run the ratchet from a
+   trusted workflow against a pinned copy of the script instead.
 3. If the repository tracks generated or vendored source, write
    `tools/source-size-exclude` first (see below), so those files never
    enter the baseline.
@@ -183,7 +191,7 @@ An adopter taking a function-length lint (clippy's
 `too_many_lines`) at the same time should expect to raise entries in
 the adopting pull request. The exemption reasons live next to the
 functions they excuse, so they lengthen files that are already
-baselined. In ryll, thirteen `#[expect]` reasons added 73 lines of
+baselined. In ryll, thirteen `#[expect]` reasons added 70 lines of
 prose to six files in the baseline, and six entries were raised in
 the pull request that adopted both. `--update` never raises an
 entry, so this is a hand edit, explained in the pull request
