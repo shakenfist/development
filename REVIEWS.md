@@ -265,3 +265,5 @@ for how this works, including how to verify the attestations.
 | tools/report-audit-failure.sh | mikal | 2026-10-18 | 44d17f77b0a3 | - |
 | tools/review-tracking.sh | mikal | 2026-10-28 | 0864c56af83a | - |
 | tools/source-size-ratchet.py | mikal | 2026-11-17 | f07378a356f3 | - |
+
+<!-- Throwaway: protect-development-main phase 3 proof. Never merged. -->
