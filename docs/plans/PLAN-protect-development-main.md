@@ -1070,7 +1070,8 @@ required check that has not reported is not a check that passed --
 and the cost is that `main`'s availability now depends on that pool's.
 Dropping `gitleaks` from the contexts would buy the availability back
 at the price of the gate the `secret-handling` audit asks for, so it
-is recorded as a cost to decide on rather than fixed here.
+is recorded as a cost to decide on rather than fixed here, and filed
+as #461 with the directions that were considered.
 
 ### Phase 4: measure it
 
@@ -1392,7 +1393,17 @@ canonical copy lives in shakenfist/development at
   this gap matter more.
 * #352: a read identity for the audit that can see `bypass_actors`,
   which would turn this plan's bypass read-back from a reviewer's
-  confirmation into a measurement.
+  confirmation into a measurement. Phase 3's survey found a cheaper
+  half-measure worth considering with it: the daily export tracks
+  `bypass_actors` in
+  `.github/exported-config/ruleset-protect-default-branch-history.json`,
+  because the export workflow's `GITHUB_TOKEN` can read the key the
+  audit's token is refused, so a criterion reading the exported file
+  could measure the bypass list without widening any token.
+* #461: `main`'s merge gate is now coupled to the ephemeral runner
+  pool, because `gitleaks` is the one required context that cannot run
+  on a static runner (it needs trixie for the package). Filed from
+  phase 3's *What the pool found*.
 
 ### Bugs fixed during this work
 
