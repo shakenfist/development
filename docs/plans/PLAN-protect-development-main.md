@@ -736,7 +736,10 @@ Read on 2026-11-28 against the live repository, with `main` at
    `false` -- phase 4's criterion reads rule types and context names,
    not this parameter, so turning it off costs nothing that is
    measured. Mikal confirmed keeping it in the back brief on
-   2026-11-28, with the escape understood.
+   2026-11-28, with the escape understood. **It cost nothing:** both
+   #456 and #457 reached `mergeStateStatus: CLEAN` with zero
+   approvals, so the parameter admitted a code pull request and a
+   review-only one without demanding a review neither could have.
 5. **The PUT happens while this phase's pull request is open**, and
    that pull request merging is proof item 2. The pull request carries
    the record of the read-back, so it cannot land before the thing it
@@ -1015,23 +1018,23 @@ enforcement at all.
    evidence either way. It is one line for Mikal to run, and the
    expected answer is GH013 and "Changes must be made through a pull
    request".
-3. **Three of four, waiting on the fourth.** This phase's pull request
-   is #456. `CI paths`, `Lint and test` and `Audit smoke run` all
-   report success; `gitleaks` has not reported, for the reason under
-   *What the pool found* below, so GitHub reads the pull request as
-   `mergeable: MERGEABLE` and `mergeStateStatus: BLOCKED`. Nothing
-   about that is the `pull_request` rule or decision 4:
-   `require_extra_approval_for_unattributed_changes` is not what is
-   holding it, since the rollup names the missing context.
-4. **Half proved, and it is the half that was in doubt.** The
-   throwaway was #457, a branch touching only `REVIEWS.md`. `CI paths`
-   reports success and `Lint and test`, `Audit smoke run`,
-   `Automated reviewer` and CodeQL's `Analyze` all report skipped --
-   which is the behaviour phase 1 existed to produce and the thing a
-   required-checks rule would otherwise wedge forever. Its `gitleaks`
-   is queued with everything else, so its mergeable state is `BLOCKED`
-   for the same reason as #456's rather than for a reason of its own.
-   To be closed unmerged with its branch deleted once it has reported.
+3. **Checks done; the merge is Mikal's.** This phase's pull request
+   is #456. At head `5cf1a49` all four required contexts report
+   success -- `CI paths`, `gitleaks`, `Lint and test` and
+   `Audit smoke run` -- and GitHub reads it as `mergeable: MERGEABLE`
+   with `mergeStateStatus: CLEAN`. It sat at `BLOCKED` for about forty
+   minutes first, on `gitleaks` alone, for the reason under *What the
+   pool found*; the rollup named the missing context throughout, so
+   the `pull_request` rule and decision 4 were never what held it.
+4. **Done.** The throwaway was #457, a branch touching only
+   `REVIEWS.md`. `CI paths` and `gitleaks` report success and
+   `Lint and test`, `Audit smoke run`, `Automated reviewer` and
+   CodeQL's `Analyze` all report skipped, and it reached
+   `mergeable: MERGEABLE` / `mergeStateStatus: CLEAN` -- a skipped
+   required check satisfies the rule, which is the whole of what
+   phase 1 bought and the thing a required-checks rule would
+   otherwise have wedged forever. Closed unmerged on 2026-11-28, with
+   its remote and local branches and its worktree removed.
 5. **Pending**, until the next push to `main`. Worth recording early:
    `rulesets/rule-suites?time_period=day` already attributes this
    repository's review-mark pushes to `shakenfist-review-marks[bot]`
