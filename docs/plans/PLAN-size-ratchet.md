@@ -1279,13 +1279,13 @@ below gives.
   criterion that refuses one outright turns that into an argument
   about the criterion.
 
-**What switching them on does**, to be re-derived from the dry run
-before merging: `rust-function-length-lint` applies to 6
-repositories and, after the pilot, fails 5 (`andris`, `instar`,
-`teneral`, `uncalibrated-sextant`, `visual-digest-rust`).
-`source-size-ratchet` fails every one of the 23 in-scope
-repositories that has tracked source, except `development` and
-`ryll`; the dry run gives the exact number. As in
+**What switching them on does**, measured by step 4d rather than
+predicted: `rust-function-length-lint` applies to 6 repositories
+and fails 5 (`andris`, `instar`, `teneral`,
+`uncalibrated-sextant`, `visual-digest-rust`), with ryll passing.
+`source-size-ratchet` applies to all 23 in-scope repositories --
+every one has tracked source -- and fails 20, because three pass:
+`development`, `ryll` and `instar`. As in
 `PLAN-review-unit-size.md` D2, the daily audit drives the fixes;
 this plan opens no pull requests in those repositories, and
 `docs/audits/compliance.md` showing both criteria mostly red for a
@@ -1588,6 +1588,47 @@ nor true in general, since a queue run exists to test the merged
 result. The exclusion was dropped, so the snippet measures the tree
 about to land. Its pinning comment also cited the
 `third-party-action-pinning` criterion, which does not exist yet.
+
+Step 4d measured what the two criteria do to the fleet, from two
+hermetic `git archive` copies of `main` and of this branch, against
+25 fresh `--filter=blob:none` clones of the audit matrix. The matrix
+holds 25 names and the in-scope list 23: `images` and `private-ci`
+are scoped to a named subset of criteria, so both new criteria are
+not applicable to them. Every one of the 23 has tracked source, so
+the ratchet applies to all of them.
+
+| Criterion | Applies | Pass | Fail |
+|-----------|---------|------|------|
+| `source-size-ratchet` | 23 | 3 | 20 |
+| `rust-function-length-lint` | 6 | 1 | 5 |
+
+Every ratchet failure reads the same way -- the script is missing
+and the hook is not in `.pre-commit-config.yaml` -- so the fix is
+adoption rather than repair. `audit-manage-issues.py --dry-run`
+would file 20 `Consistency: Source size ratchet` issues and 5
+`Consistency: Rust function length lint` issues, and the snapshot
+diff moved nothing else: all 50 differences are these two criteria
+appearing across the 25 repositories, and no network check
+differed.
+
+One prediction did not survive the measurement. The section said
+the ratchet would fail every in-scope repository except
+`development` and `ryll`, which is 21. It fails 20, because
+`instar` passes: it adopted the template on 2026-11-25 in its own
+`fba04bc`, three days before this phase and with no criterion
+asking it to, and it is wired the way ryll is -- byte-identical
+script, hook in the pre-commit config, and a CI job of its own
+whose comment records that `pre-commit run --all-files` is not how
+that repository runs hooks.
+
+That is worth more than the arithmetic. It is a repository adopting
+the template from its README alone, which is the case the template
+exists for, and a second independent confirmation that decision 2's
+lane test is drawn in the right place: `instar` also runs
+`pre-commit run skillsaw --all-files`, so the loose reading would
+have passed it on that job, and the narrow one passes it on the
+ratchet job it actually has. `instar` now passes one new criterion
+and fails the other.
 
 #### Back brief
 
