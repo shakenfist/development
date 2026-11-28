@@ -56,9 +56,9 @@ Concretely, we require:
 4. No tracked `.rs` file carries a bare
    `#[allow(clippy::too_many_lines)]`. An allow is accepted when it
    gives a reason: either `reason = "..."` with something in the
-   string, inside the same `allow(...)` that names the lint, or a comment on the line immediately
-   above the attribute's first line. Three forms of comment are
-   distinguished:
+   string, inside the same `allow(...)` that names the lint, or a
+   comment on the line immediately above the attribute's first line.
+   Three forms of comment are distinguished:
 
    * A plain `//` comment with text after it is accepted. A bare `//`
      is not.
@@ -76,8 +76,9 @@ Concretely, we require:
    would accept them all.
 
    Only an `allow` is looked for, and only one that names the lint
-   inside its own parentheses. `#[cfg_attr(test, allow(clippy::too_many_lines))]`
-   is found; `#[cfg_attr(test, expect(clippy::too_many_lines),
+   inside its own parentheses.
+   `#[cfg_attr(test, allow(clippy::too_many_lines))]` is found;
+   `#[cfg_attr(test, expect(clippy::too_many_lines),
    allow(dead_code))]` is not, because the lint is handled by `expect`.
    Likewise a reason belongs to the `allow` it is written in:
    `#[cfg_attr(test, allow(clippy::too_many_lines), expect(dead_code,
@@ -127,8 +128,9 @@ silently, and a stale exemption is a licence for the function to grow
 back.
 
 For that reason this criterion does not scan for `expect`: the compiler
-already notices when one is stale. It does scan for `allow`, which nothing else polices,
-and accepts one that says why -- a repository on a toolchain too old for
+already notices when one is stale. It does scan for `allow`, which
+nothing else polices, and accepts one that says why -- a repository on
+a toolchain too old for
 `expect` has no other choice -- while a bare one is the unexplained
 exemption the lint exists to prevent.
 

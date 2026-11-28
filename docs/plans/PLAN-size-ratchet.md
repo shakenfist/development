@@ -1696,6 +1696,36 @@ which criteria reach the network fell two checks behind that way,
 which is why `docs/consistency-audits.md` says to read such a list at
 its source. The spec now points at the template instead.
 
+Review round 3 ended the loop: 1 fix, 1 document, 6 consider, 2
+none. The fix was prose wrap -- three lines the earlier rounds'
+mid-sentence inserts left past the column the surrounding text uses,
+in `docs/audits/rust-function-length-lint.md`. It is not a false
+verdict, which is the test the previous round set for carrying on,
+so this round took it, took the document item (the spec's summary
+table listed two of the three accepted lane shapes), and stopped.
+
+Three substantive items were filed rather than taken, each verified
+latent before deferring it. #470: `too_many_lines` is in clippy's
+`pedantic` group and a level set in source beats the one `[lints]`
+passes, so `#![allow(clippy::pedantic)]` would switch the lint off
+while every check the criterion makes still passes -- no in-scope
+Rust repository allows that group or `warnings`, checked across all
+six. #471: the lane regex rejects spellings that do run the script,
+such as a quoted path or a second interpreter flag -- both
+repositories with a direct lane use the template's own spelling.
+#472: an unreadable `Cargo.toml` is reported as "not a Rust
+project", which states the opposite of what is true and closes any
+open issue, where the policy for a tool that did not answer is
+`error`; the wording is inherited from `rust-unwrap-lint`, so a fix
+covers both and must contend with `packaging.py` being at its
+baseline.
+
+Trajectory across the three rounds: 3 fix, then 2, then 1, with the
+considers 7, 6, 6. The two middle fixes were about code round 1
+added, which was the signal to watch, and both were wrong verdicts;
+by round 3 nothing left was, so the exit rule was met rather than
+the reviewer running out of things to say.
+
 #### Back brief
 
 Two gates, both because the work after them is cheap to propose

@@ -11,7 +11,7 @@ wired so that it gates a merge:
 |------|-------|
 | The script | `tools/source-size-ratchet.py`, byte-identical to `source-size-ratchet.py` in the template |
 | The hook | A `.pre-commit-config.yaml` hook whose `entry:` runs `tools/source-size-ratchet.py` |
-| The CI lane | At least one workflow that runs every hook, as `pre-commit run --all-files` does, or that invokes `tools/source-size-ratchet.py` itself |
+| The CI lane | At least one workflow that runs every hook, as `pre-commit run --all-files` does, that runs the hook by the `id:` the repository's own config gives it, or that invokes `tools/source-size-ratchet.py` itself |
 
 The hook and the lane are required together, and each is judged on its
 own. A repository with a lane and no hook is told only that the hook is
