@@ -929,10 +929,6 @@
       "sha": "add2cdd152a7215c083bdcda91c2cb39d2c4ec8d",
       "date": "2026-09-04"
     },
-    "templates/source-size-ratchet/README.md": {
-      "sha": "49bc8c98cd30f0fa213b60d90e6b92f210ff8105",
-      "date": "2026-11-18"
-    },
     "templates/source-size-ratchet/pre-commit-hook.yaml": {
       "sha": "cca9425843f60ff618d30cc81ade28d39abab977",
       "date": "2026-11-17"

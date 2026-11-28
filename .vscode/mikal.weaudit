@@ -917,14 +917,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/source-size-ratchet/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/source-size-ratchet",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/commit-audit-docs.sh",
       "author": "mikal"
     },
