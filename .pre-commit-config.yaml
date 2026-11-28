@@ -48,16 +48,18 @@ repos:
       # copy-directly templates, which are the ones the fleet actually
       # runs unmodified, are all checked.
       #
-      # One YAML file under templates/ is not a workflow at all:
+      # Two YAML files under templates/ are not workflows at all:
       # source-size-ratchet's pre-commit-hook.yaml is a stanza for an
-      # adopter's .pre-commit-config.yaml, which actionlint can only
-      # reject. It is left out of `files:` by name rather than through
-      # `exclude:`, because the exclude list is held to exactly the
-      # templates that carry a placeholder, and this one carries none.
+      # adopter's .pre-commit-config.yaml, and its ci-job.yaml is a bare
+      # job stanza for an adopter's `jobs:` map; actionlint can only
+      # reject either. They are left out of `files:` by name rather
+      # than through `exclude:`, because the exclude list is held to
+      # exactly the templates that carry a placeholder, and these carry
+      # none.
       - id: actionlint
         alias: actionlint-templates
         name: Lint the workflow templates
-        files: ^templates/(?!source-size-ratchet/pre-commit-hook\.yaml$).*\.ya?ml$
+        files: ^templates/(?!source-size-ratchet/(pre-commit-hook|ci-job)\.yaml$).*\.ya?ml$
         exclude: |
           (?x)^templates/(
             issue-fix/issue-fix\.yml|
