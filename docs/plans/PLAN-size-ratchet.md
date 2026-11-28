@@ -301,7 +301,7 @@ plan, the close-out of phases 1 and 2, and the pilot's report.
 |-------|--------|--------|
 | 1. The ratchet template | Complete | dbcf540 (#405) |
 | 2. `source-file-size` v2 | Complete | dbcf540 (#405) |
-| 3. ryll pilot | In progress | |
+| 3. ryll pilot | Complete | ryll debf8b1 (#746), 252dd43 (#458) |
 | 4. Criteria and enforcement | Not started | |
 | 5. Push audit | Not started | |
 
